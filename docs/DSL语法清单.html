@@ -67,4 +67,8 @@ def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动�
 <tr><td><code>go</code></td><td><code>go(name, timeout=120000)</code></td><td>走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静</td></tr>
 <tr><td><code>at</code></td><td><code>at(name)</code></td><td>期望验证: 当前是否在指定界面(单帧一张锚点, 高频便宜; 迷路判别用 go)。</td></tr>
 </table>
+<h2>看门狗</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>progress</code></td><td><code>progress(note='')</code></td><td>手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。</td></tr>
+</table>
 </body></html>

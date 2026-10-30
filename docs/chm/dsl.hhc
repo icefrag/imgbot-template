@@ -132,5 +132,14 @@
 		<param name="Local" value="c6/p6-1.html">
 		</OBJECT>
 	</UL>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="¿´ÃÅ¹·">
+	</OBJECT>
+	<UL>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="progress">
+		<param name="Local" value="c7/p7-0.html">
+		</OBJECT>
+	</UL>
 </UL>
 </BODY></HTML>

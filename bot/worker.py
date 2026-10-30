@@ -13,6 +13,11 @@ import traceback
 from . import backends, dsl, settings
 
 
+class FatalError(RuntimeError):
+    """致命失败: 重开也救不了的(账号被封/游戏版本过期/素材全失效)。
+    task.py 里 raise 它, worker 直接停手不消耗重开次数。"""
+
+
 class Worker:
     def __init__(self, ident: str, backend: str, gcfg: settings.ScaffoldConfig,
                  business_cfg, logq, title: str = ""):
@@ -50,6 +55,19 @@ class Worker:
             self.thread.join(join_s)
 
     # -- 内部 --
+    def _watchdog(self, ctx):
+        """idle_timeout 秒无任何进展(find/wait 命中、点击、手动 progress 都算)
+        → 停止任务并截图留痕。弹窗卡死/画面停住但没异常的场景由它兜底。"""
+        limit = self.gcfg.idle_timeout
+        tick = max(1.0, min(5.0, limit / 4))
+        while not self.stop_event.wait(tick):
+            idle = time.monotonic() - ctx._last_progress
+            if idle > limit:
+                self.log(f"看门狗: {int(idle)} 秒无进展, 停止任务", "warn")
+                ctx.shot("idle_watchdog")
+                self.stop_event.set()
+                return
+
     def _try_fuse_hook(self, task_mod, ctx) -> bool:
         """熔断前给业务一次自愈机会: task.py 里定义 on_fuse(ctx) -> bool
         (重启游戏/重新登录等), 返回 True = 已恢复(重开计数清零继续挂);
@@ -88,6 +106,9 @@ class Worker:
             # 任务入口(business 逻辑): 框架只负责把它跑起来
             import task as task_mod              # 项目根的 task.py
             ctx.nav = backends.build_nav(task_mod, ctx)   # 声明表→导航图(无表 None)
+            if self.gcfg.idle_timeout > 0:       # 无进展看门狗(防整夜卡死)
+                threading.Thread(target=self._watchdog, args=(ctx,),
+                                 daemon=True).start()
             while not self.stop_event.is_set():
                 try:
                     task_mod.main_task(ctx)
@@ -97,6 +118,11 @@ class Worker:
                     self.restarts = 0            # 正常跑完一轮, 重开计数清零
                     self.log(f"一轮完成, {self.gcfg.loop_interval}s 后重开")
                     self.stop_event.wait(self.gcfg.loop_interval)
+                except FatalError as e:                 # 致命: 重开无意义, 直接躺
+                    ctx.shot("致命")
+                    self.state = "异常(致命)"
+                    self.log(f"致命失败不重开: {e}", "error")
+                    return
                 except Exception as e:
                     self.restarts += 1
                     ctx.shot("异常")              # 留痕(spec: 验收门槛)

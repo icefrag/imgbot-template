@@ -37,6 +37,7 @@ GROUPS = [
                                 "wait_color", "wait_color_gone", "wait_text"]),
     ("识字 / 找字(OCR)", ["ocr", "ocr_numbers", "find_str"]),
     ("导航(需 task.py 声明表)", ["go", "at"]),
+    ("看门狗", ["progress"]),
 ]
 
 EXAMPLES = {
@@ -64,6 +65,7 @@ EXAMPLES = {
     "find_str": 'hit = find_str("每日签到")                     # 找字位置 (x, y) | None\nif hit: click(*hit)                  # 找到就能点\n# 短词(2字)不稳: 缩 region + min_ratio=0.5',
     "go": 'if not go("dungeon"): return        # 图带路(声明 NAV_SCREENS/NAV_EDGES)\n# 迷路自愈; LostError=需重登(配 on_fuse)',
     "at": 'if at("city"): ...                  # 便宜的单帧"我在不在这屏"',
+    "progress": 'while not ctx.stop.is_set():\n    progress("等刷新")          # 长轮询手动打点, 防看门狗误杀\n    sleep(2000)',
 }
 
 RULES = """<h2>四条铁律</h2>

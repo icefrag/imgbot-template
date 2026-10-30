@@ -1,0 +1,11 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
+<h1><code>progress</code></h1>
+<p>手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。</p>
+<h2>原型</h2>
+<pre>progress(note='')</pre>
+长轮询循环里打点, 防无进展看门狗误杀。
+<h2>示例</h2>
+<pre>while not ctx.stop.is_set():
+    progress("等刷新")          # 长轮询手动打点, 防看门狗误杀
+    sleep(2000)</pre>
+</body></html>

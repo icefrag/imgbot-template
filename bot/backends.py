@@ -73,6 +73,11 @@ class Ctx:
         self.ops = ops
         self.device = device
         self.nav = nav                            # 界面导航图(task 声明表时由 worker 建)
+        self._last_progress = time.monotonic()    # 看门狗打点(dsl 命中/点击自动刷新)
+
+    def progress(self, note: str = ""):
+        """打一次进展点(无进展看门狗的信号; dsl 命中已自动打, 长轮询可手动)。"""
+        self._last_progress = time.monotonic()
 
     def shot(self, tag: str = "") -> Path | None:
         """失败留痕: window 端存当前帧, adb 端存设备截图。"""

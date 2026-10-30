@@ -63,6 +63,12 @@
 | **go** | `go(name, timeout=120000)` | 走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静 |
 | **at** | `at(name)` | 期望验证: 当前是否在指定界面(单帧一张锚点, 高频便宜; 迷路判别用 go)。 |
 
+## 看门狗
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **progress** | `progress(note='')` | 手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。 |
+
 ## 示例速查
 
 **click**
@@ -194,4 +200,11 @@ if not go("dungeon"): return        # 图带路(声明 NAV_SCREENS/NAV_EDGES)
 **at**
 ```python
 if at("city"): ...                  # 便宜的单帧"我在不在这屏"
+```
+
+**progress**
+```python
+while not ctx.stop.is_set():
+    progress("等刷新")          # 长轮询手动打点, 防看门狗误杀
+    sleep(2000)
 ```

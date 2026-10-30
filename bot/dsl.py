@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 
 from imgbot.vision import Pt
 
@@ -72,7 +73,7 @@ __all__ = [
     "wait_pic", "wait_pic_any", "wait_pic_gone",
     "wait_color", "wait_color_gone", "wait_text",
     "ocr", "ocr_numbers", "find_str", "Pt",
-    "go", "at",
+    "go", "at", "progress",
 ]
 
 
@@ -80,6 +81,7 @@ __all__ = [
 def click(x: int, y: int):
     """点击 (x, y)。window: 移动+左键; adb: tap。"""
     ctx = _ctx()
+    ctx.progress()
     if ctx.backend == "window":
         ctx.dm.MoveTo(x, y)
         ctx.dm.LeftClick()
@@ -148,17 +150,26 @@ def shot(tag: str = ""):
 # ================= 找点(单帧) =================
 def find_color(color: str, region=None, tol: int = 0) -> list[tuple[int, int]]:
     """区域找全部色块。color="RRGGBB"(偏差给 tol, 或写 "RRGGBB-DRDGDB")。"""
-    return _ctx().ops.find_color(color, region=region, tol=tol)
+    hit = _ctx().ops.find_color(color, region=region, tol=tol)
+    if hit:
+        _ctx().progress()
+    return hit
 
 
 def find_all(pic: str, region=None, threshold: float | None = None
              ) -> list[tuple[int, int]]:
     """单帧找全部同类图(列表项/多目标), 近邻去重。"""
-    return _ctx().ops.find_all(pic, region=region, threshold=threshold)
+    hits = _ctx().ops.find_all(pic, region=region, threshold=threshold)
+    if hits:
+        _ctx().progress()
+    return hits
 
 
 def exists(pic: str, region=None, threshold: float | None = None) -> bool:
-    return _ctx().ops.exists(pic, region=region, threshold=threshold)
+    ok = _ctx().ops.exists(pic, region=region, threshold=threshold)
+    if ok:
+        _ctx().progress()
+    return ok
 
 
 def find_multi_color(rect, points, direction: int = 0):
@@ -166,7 +177,10 @@ def find_multi_color(rect, points, direction: int = 0):
     偏移点同时命中才返回锚点 (x, y) 或 None —— 色块与同色文字的判别器。
     points 为 Pt 列表(pixpick 生产), 也收 [(dx,dy,"RRGGBB"[,tol]), ...] 色串。
     direction: 多候选取哪个, 0 左上 1 左下 2 右上 3 右下。"""
-    return _ctx().ops.find_multi_color(rect, points, direction)
+    hit = _ctx().ops.find_multi_color(rect, points, direction)
+    if hit:
+        _ctx().progress()
+    return hit
 
 
 # ================= 复合动作(招牌) =================
@@ -189,8 +203,11 @@ def tap_until_gone(pic: str, region=None, timeout: int = 10000,
 def wait_pic(pic: str, region=None, timeout: int = 10000,
              threshold: float | None = None):
     """等图出现, 返回 (中心x, 中心y, 分数); 超时自动截图留痕。"""
-    return _ctx().ops.wait_pic(pic, region=region, timeout=timeout / 1000,
-                               threshold=threshold, stop=_ctx().stop)
+    hit = _ctx().ops.wait_pic(pic, region=region, timeout=timeout / 1000,
+                              threshold=threshold, stop=_ctx().stop)
+    if hit:
+        _ctx().progress()
+    return hit
 
 
 def wait_pic_any(pics: list[str], region=None, timeout: int = 10000,
@@ -210,15 +227,21 @@ def wait_pic_gone(pic: str, region=None, timeout: int = 10000,
 def wait_color(color: str, region=None, timeout: int = 10000):
     """等某色出现(色比图快), 返回 (x, y) 或 None。偏差写进色串:
     "RRGGBB-DRDGDB"。"""
-    return _ctx().ops.wait_color(color, region=region, timeout=timeout / 1000,
-                                 stop=_ctx().stop)
+    hit = _ctx().ops.wait_color(color, region=region, timeout=timeout / 1000,
+                                stop=_ctx().stop)
+    if hit:
+        _ctx().progress()
+    return hit
 
 
 def wait_color_gone(color: str, region=None, timeout: int = 10000) -> bool:
     """等某色消失(等击杀/等加载), 消失 True / 超时 False。"""
-    return _ctx().ops.wait_color_gone(color, region=region,
-                                      timeout=timeout / 1000,
-                                      stop=_ctx().stop)
+    ok = _ctx().ops.wait_color_gone(color, region=region,
+                                    timeout=timeout / 1000,
+                                    stop=_ctx().stop)
+    if ok:
+        _ctx().progress()
+    return ok
 
 
 def wait_text(text: str, region=None, timeout: int = 10000):
@@ -245,6 +268,8 @@ def find_str(text: str, region=None, min_ratio: float = 0.7):
     找到就能点。关键词 ≥4 字才稳(实测 7 字错 1 字仍命中); 2 字短词比例上限
     低, 需缩 region 并降 min_ratio。"""
     hit = _ctx().ops.find_text(text, region, min_ratio)
+    if hit:
+        _ctx().progress()
     return (hit[0], hit[1]) if hit else None
 
 
@@ -256,7 +281,10 @@ def go(name: str, timeout: int = 120000) -> bool:
     ctx = _ctx()
     if ctx.nav is None:
         raise RuntimeError("task.py 未声明 NAV_SCREENS/NAV_EDGES, 没有导航图可用")
-    return ctx.nav.go(name, timeout=timeout / 1000, stop=ctx.stop)
+    ok = ctx.nav.go(name, timeout=timeout / 1000, stop=ctx.stop)
+    if ok:
+        ctx.progress()
+    return ok
 
 
 def at(name: str) -> bool:
@@ -265,3 +293,9 @@ def at(name: str) -> bool:
     if ctx.nav is None:
         raise RuntimeError("task.py 未声明 NAV_SCREENS, 没有导航图可用")
     return ctx.nav.at(name)
+
+
+def progress(note: str = ""):
+    """手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。
+    长轮询循环里打点, 防无进展看门狗误杀。"""
+    _ctx().progress(note)

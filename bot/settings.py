@@ -37,12 +37,19 @@ class ScaffoldConfig:
     window_size: list[int] = field(default_factory=lambda: [1280, 800])
     left_ratio: float = 0.45           # 左列(目标表)占宽比例
     theme: str = "darkly"              # ttkbootstrap 主题名
+    idle_timeout: int = 0              # 无进展看门狗秒数(0=关): find/wait 命中与
+                                       # 点击算进展, 超时停任务留痕(防整夜卡死)
 
 
 def load() -> ScaffoldConfig:
     cfg = ScaffoldConfig()
     if PATH.exists():
-        raw = tomllib.loads(PATH.read_text("utf-8"))
+        try:
+            raw = tomllib.loads(PATH.read_text("utf-8"))
+        except tomllib.TOMLDecodeError:            # 损坏: 备份后用默认值
+            from .store import _backup_broken
+            _backup_broken(PATH)
+            raw = {}
         known = {f.name: f for f in fields(ScaffoldConfig)}
         for k, v in raw.items():
             if k in known:                       # 未知键忽略(向前兼容)
@@ -51,6 +58,6 @@ def load() -> ScaffoldConfig:
 
 
 def save(cfg: ScaffoldConfig) -> None:
-    PATH.write_text(
-        tomli_w.dumps({f.name: getattr(cfg, f.name) for f in fields(cfg)}),
-        encoding="utf-8")
+    from .store import _atomic_write
+    _atomic_write(PATH, tomli_w.dumps(
+        {f.name: getattr(cfg, f.name) for f in fields(cfg)}))
