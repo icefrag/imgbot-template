@@ -1,0 +1,115 @@
+# imgbot-template · 图色脚本脚手架
+
+imgbot 门面之上的项目模板:**拷贝本目录改名 = 新脚本项目**。开发者只写两个文件,其余(中控台/热键收编/Worker 生命周期/双层配置/异常重开/日志留痕)框架全包。
+
+## 快速开始
+
+```bash
+uv sync                          # 依赖(含 imgbot path 引用)
+uv run python test/legend_game.py   # 开测试游戏(另开终端)
+uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10s 后 Ctrl+C)
+```
+
+---
+
+# 开发手册
+
+## 目录
+
+```
+├── main.py            # 单开入口(裸跑, Ctrl+C 停)
+├── console.py         # 多开中控台(ttkbootstrap, 热键收编)
+├── scaffold.toml      # 脚手架层配置(框架的: 通道/热键/UI/重开策略)
+├── business.py        # ★ 业务配置 dataclass + FIELD_META(弹窗自动生成)
+├── task.py            # ★ main_task(ctx) 总入口 + 子任务(打字示例)
+├── bot/               # 框架包(拷走不改)
+│   ├── worker.py      #   生命周期: 绑定→ctx→任务→异常重开→收口
+│   ├── backends.py    #   adb / window 两端(发现/绑定/ctx 组装)
+│   ├── hotkeys.py     #   F9 热键收编(hover/focus 拾取)
+│   ├── settings.py    #   scaffold.toml 读写
+│   ├── store.py       #   business.yaml 读写
+│   └── console_ui.py  #   中控台 UI
+├── test/              # 测试辅助
+│   ├── legend_game.py #   类传奇小游戏(挂机靶场, 图色色值见文件头)
+│   ├── game_smoke.py  #   游戏冒烟(识别/点击/击杀/掉落)
+│   ├── farm_e2e.py    #   挂机 E2E(金币增长验证)
+│   ├── auto_farm/     #   挂机辅助项目(基于脚手架二开的示范)
+│   ├── pick_probe.py  #   窗口拾取探测(hover/focus)
+│   └── tpl_crop.py    #   模板裁剪(截窗→框选→存 templates)
+├── templates/         # 图色素材 PNG
+└── logs/              # 运行产物(shots 留痕, gitignore)
+```
+
+## 发布(未实现, 预留)
+
+`build_exe.py`: PyInstaller onedir(源码冻结进 exe) + `bin/` 潜影注入件 + templates —— 绿色 zip 与安装器同一目录形态。
+
+---
+
+# 测试手册 · 挂机辅助项目(auto_farm)
+
+操作传奇小游戏(imgbot-legend)的挂机项目,位于 **`test/auto_farm/`** —— 基于
+脚手架二开的完整示范,开发者写的东西只有 `business.py`(挂机参数)和
+`task.py`(自动打怪循环)两个文件。
+
+## 怎么跑
+
+```bash
+# 终端 1: 开游戏
+uv run python test/legend_game.py
+
+# 终端 2: 开挂机(单开模式, 3 秒后自动开始打怪)
+uv run python test/auto_farm/main.py
+
+# 或多开中控台(F9 收编游戏窗口, 表格启停)
+uv run python test/auto_farm/console.py
+```
+
+## 它自动做什么
+
+找怪(红色圆 #CC3333)→ 点击选中(角色自动攻击)→ 等击杀 →
+捡金币(#FFD700)→ 循环。日志/表格实时显示"锁定怪 → 击杀 ×N → 捡金币"
+完整序列; 连续失败自动重开, 超限熔断(可配)。
+
+## 挂机参数(business.py)
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| attack_wait | 10.0 秒 | 点击怪物后等它死的超时 |
+| coin_timeout | 6.0 秒 | 等金币掉落的超时 |
+| max_kills | 0 | 最大击杀数(0 = 无限挂机) |
+
+## 配套工具(test/)
+
+| 工具 | 用途 |
+|---|---|
+| `pick_probe.py` | 实时显示 hover/focus 拾到的窗口(句柄/类名/标题), 定 pick_mode 用 |
+| `tpl_crop.py` | 模板裁剪: 截当前鼠标下窗口 → 框选 → 存 templates/*.png |
+| `game_smoke.py` | 游戏冒烟: 识别/点击/击杀/掉落自动验收 |
+| `farm_e2e.py` | 挂机 E2E: 40 秒金币增长自动验收 |
+
+### 二开流程(新脚本)
+
+1. 拷贝本目录改名(如 `龙谷助手`)→ `uv sync`
+2. `business.py` 写业务配置字段(或让 AI 写)
+3. `task.py` 写 `main_task(ctx)` + 子任务(或让 AI 写)
+4. `test/tpl_crop.py` / pixpick 制作素材进 `templates/`
+5. `uv run main.py`(单开)或 `uv run console.py`(多开)
+
+### ctx 一览(任务代码的全部世界)
+
+| 字段 | window 端 | adb 端 |
+|---|---|---|
+| `ctx.ops` | ✅ Ops 门面(find_tap/wait_pic/find_color/...) | — |
+| `ctx.dm` | ✅ DmSoft(MoveTo/KeyPress/FindWindow/...) | — |
+| `ctx.device` | — | ✅ AdbTarget(actions.* 魔神方言) |
+| `ctx.cfg` | ✅ 业务配置对象 | ✅ |
+| `ctx.log` / `ctx.stop` / `ctx.shot(tag)` | ✅ | ✅ |
+
+### 中控台
+
+- **F9 热键收编**: 鼠标悬停目标窗口按 F9 → 加入表格并启动; 再按停止。拾取方式(hover/focus)在 scaffold.toml
+- 表格双击/按钮启停; 右侧日志实时流(按级别着色)
+- ⚙ 设置双 Tab: 脚手架(通道/热键/重开策略/UI) / 业务(自动按 FIELD_META 生成)
+- 窗体尺寸/左右比例/主题 = scaffold.toml `[ui]`, 用户不可调
+

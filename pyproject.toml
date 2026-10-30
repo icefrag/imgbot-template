@@ -1,0 +1,20 @@
+[project]
+name = "imgbot-template"
+version = "0.1.0"
+description = "图色脚本脚手架(基于 imgbot 门面): 拷贝本目录二开, 改名即新项目"
+requires-python = ">=3.12"
+dependencies = [
+    "imgbot[ocr]",
+    "ttkbootstrap>=1.10.1",
+    "tomli-w>=1.0",
+]
+
+[tool.uv.sources]
+imgbot = { path = "../imgbot" }
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[tool.uv]
+python-install-mirror = "https://mirrors.cloud.tencent.com/python-build-standalone"
