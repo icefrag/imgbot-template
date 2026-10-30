@@ -61,6 +61,7 @@ __all__ = [
 
 # ================= 键鼠(端无关: window=dm / adb=device) =================
 def click(x: int, y: int):
+    """点击 (x, y)。window: 移动+左键; adb: tap。"""
     ctx = _ctx()
     if ctx.backend == "window":
         ctx.dm.MoveTo(x, y)
@@ -70,6 +71,7 @@ def click(x: int, y: int):
 
 
 def dblclick(x: int, y: int):
+    """双击 (x, y)。"""
     ctx = _ctx()
     if ctx.backend == "window":
         ctx.dm.MoveTo(x, y)

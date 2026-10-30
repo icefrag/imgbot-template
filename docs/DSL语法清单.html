@@ -1,0 +1,63 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
+<h1>imgbot-template DSL 语法清单</h1>
+<h2>四条铁律</h2>
+<ol>
+<li><b>凡时间皆毫秒</b> — sleep(500)=半秒, timeout=10000=10 秒(各等待命令默认)。</li>
+<li><b>找不到/超时返回 None 或 False, 不抛异常</b> — "没找到"是挂机常态;
+    真故障(窗口没了)由框架绑定层兜底自动重开/熔断。</li>
+<li><b>F9 停止贯穿一切</b> — sleep 与所有 wait 命令按下即醒即退。</li>
+<li><b>ctx 是逃生舱</b> — 冷门动作(wait_until/retry/swipe_find/read_number/
+    probe/check_points...)与窗口管理走 ctx.ops / ctx.dm / ctx.device。</li>
+</ol>
+<h2>task.py 骨架</h2>
+<pre>from bot.dsl import *          # 唯一的前缀
+
+def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动重开)
+    while not ctx.stop.is_set():
+        hit = find_color("CC3333", tol=40)
+        if not hit:
+            sleep(1500)
+            continue
+        click(*hit[0])
+        if wait_color_gone("CC3333-282828", timeout=10000):
+            log("击杀")</pre>
+<p>完整示范: test/auto_farm/task.py(多点找色版自动打怪)。</p>
+<h2>键鼠</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>click</code></td><td><code>click(x, y)</code></td><td>点击 (x, y)。window: 移动+左键; adb: tap。</td></tr>
+<tr><td><code>dblclick</code></td><td><code>dblclick(x, y)</code></td><td>双击 (x, y)。</td></tr>
+<tr><td><code>move</code></td><td><code>move(x, y)</code></td><td>悬停(不点)。adb 端无悬停概念, 报错指路。</td></tr>
+<tr><td><code>key</code></td><td><code>key(s)</code></td><td>按键/组合键: key("enter") / key("ctrl+s")(修饰键 ctrl/alt/shift/win)。</td></tr>
+<tr><td><code>sleep</code></td><td><code>sleep(ms)</code></td><td>可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。</td></tr>
+</table>
+<h2>消息</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>log</code></td><td><code>log(text, level='info')</code></td><td></td></tr>
+<tr><td><code>shot</code></td><td><code>shot(tag='')</code></td><td></td></tr>
+</table>
+<h2>找点(单帧)</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>find_color</code></td><td><code>find_color(color, region=None, tol=0)</code></td><td>区域找全部色块。color="RRGGBB"(偏差给 tol, 或写 "RRGGBB-DRDGDB")。</td></tr>
+<tr><td><code>find_all</code></td><td><code>find_all(pic, region=None, threshold=None)</code></td><td>单帧找全部同类图(列表项/多目标), 近邻去重。</td></tr>
+<tr><td><code>find_multi_color</code></td><td><code>find_multi_color(rect, points, direction=0)</code></td><td>多点找色(大漠 FindMultiColor 对应物): 锚点在 rect 内搜索, 全部相对</td></tr>
+<tr><td><code>exists</code></td><td><code>exists(pic, region=None, threshold=None)</code></td><td></td></tr>
+</table>
+<h2>复合动作</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>find_tap</code></td><td><code>find_tap(pic, region=None, timeout=0, threshold=None)</code></td><td>找到就拟人点。timeout=0 单帧试; 超时返 False。</td></tr>
+<tr><td><code>tap_until_gone</code></td><td><code>tap_until_gone(pic, region=None, timeout=10000, threshold=None)</code></td><td>连点直到图消失(确定/领取类), 返回点击次数; 不出现返回 0。</td></tr>
+</table>
+<h2>等待(超时返 None/False)</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>wait_pic</code></td><td><code>wait_pic(pic, region=None, timeout=10000, threshold=None)</code></td><td>等图出现, 返回 (中心x, 中心y, 分数); 超时自动截图留痕。</td></tr>
+<tr><td><code>wait_pic_any</code></td><td><code>wait_pic_any(pics, region=None, timeout=10000, threshold=None)</code></td><td>等一组模板任一出现, 返回 (名字, x, y, 分数); 超时 None。</td></tr>
+<tr><td><code>wait_pic_gone</code></td><td><code>wait_pic_gone(pic, region=None, timeout=10000, threshold=None)</code></td><td>等图消失(加载页结束判定)。</td></tr>
+<tr><td><code>wait_color</code></td><td><code>wait_color(color, region=None, timeout=10000)</code></td><td>等某色出现(色比图快), 返回 (x, y) 或 None。偏差写进色串:</td></tr>
+<tr><td><code>wait_color_gone</code></td><td><code>wait_color_gone(color, region=None, timeout=10000)</code></td><td>等某色消失(等击杀/等加载), 消失 True / 超时 False。</td></tr>
+<tr><td><code>wait_text</code></td><td><code>wait_text(text, region=None, timeout=10000)</code></td><td>OCR 等文字出现("完成"提示类), 返回 (中心x, 中心y, 相似度) 或 None。</td></tr>
+</table>
+<h2>读数</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>read_text</code></td><td><code>read_text(region=None)</code></td><td></td></tr>
+</table>
+</body></html>

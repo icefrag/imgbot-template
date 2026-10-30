@@ -1,0 +1,14 @@
+[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=dsl_doc.chm
+Contents file=dsl.hhc
+Default topic=index.html
+Default Window=main
+Language=0x804
+Title=DSL syntax
+
+[WINDOWS]
+main="DSL syntax","dsl.hhc",,"index.html",,,,,,0x20,200,0x1006,[50,30,1000,760],0,0,1,0,0,0,0
+
+[FILES]
+index.html

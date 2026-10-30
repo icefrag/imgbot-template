@@ -1,0 +1,10 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
+<h1><code>find_color</code></h1>
+<p>区域找全部色块。color="RRGGBB"(偏差给 tol, 或写 "RRGGBB-DRDGDB")。</p>
+<h2>原型</h2>
+<pre>find_color(color, region=None, tol=0)</pre>
+
+<h2>示例</h2>
+<pre>hit = find_color("CC3333", tol=40, region=(0, 0, 900, 570))
+if hit: click(*hit[0])</pre>
+</body></html>
