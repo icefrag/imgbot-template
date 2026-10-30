@@ -78,11 +78,11 @@ class Ctx:
         SHOTS.mkdir(parents=True, exist_ok=True)
         p = SHOTS / f"{time.strftime('%m%d_%H%M%S')}_{self.name}_{tag or 'shot'}.png"
         try:
-            if self.backend == "window":
+            if self.dm is not None:               # window 绑定帧 / adb 鸭子帧源
                 import cv2
                 cv2.imwrite(str(p), self.dm._screen())
-            else:
-                self.device.screenshot().save_png(str(p))
+            elif self.device is not None:
+                self.device.save_screenshot(str(p))
             return p
         except Exception:
             return None
@@ -101,11 +101,33 @@ def bind_window_backend(hwnd: int, scaffold, business_cfg, log, stop) -> Ctx:
                dm=dm, ops=ops)
 
 
+class _AdbDm:
+    """喂 Ops 门面的 adb 鸭子: _screen→设备截图(BGR), MoveTo+LeftClick→tap
+    (find_tap/tap_until_gone 的拟人点击走这条路)。"""
+
+    def __init__(self, target):
+        self._t = target
+        self._pos = (0, 0)
+
+    def _screen(self):
+        return self._t.screenshot()
+
+    def MoveTo(self, x, y):
+        self._pos = (int(x), int(y))
+
+    def LeftClick(self):
+        self._t.tap(*self._pos)
+
+
 def bind_adb_backend(serial: str, scaffold, business_cfg, log, stop) -> Ctx:
-    """adb 端绑定: AdbTarget(魔神线, 天然后台)。"""
+    """adb 端绑定: AdbTarget(魔神线, 天然后台) + Ops 鸭子帧源(图色 DSL 同构)。"""
+    from imgbot.ops import Ops
     from imgbot.target import AdbTarget
     target = AdbTarget(serial)
-    return Ctx("adb", serial, business_cfg, log, stop, device=target)
+    dm = _AdbDm(target)
+    ops = Ops(dm)
+    return Ctx("adb", serial, business_cfg, log, stop,
+               device=target, ops=ops, dm=dm)
 
 
 def unbind(ctx: Ctx) -> None:

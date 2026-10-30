@@ -34,6 +34,7 @@ uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10
 │   ├── legend_game.py #   类传奇小游戏(挂机靶场, 图色色值见文件头)
 │   ├── game_smoke.py  #   游戏冒烟(识别/点击/击杀/掉落)
 │   ├── farm_e2e.py    #   挂机 E2E(金币增长验证)
+│   ├── adb_smoke.py   #   adb 端冒烟(模拟器/真机: 绑定→图色 DSL→tap→key)
 │   ├── auto_farm/     #   挂机辅助项目(基于脚手架二开的示范)
 │   ├── pick_probe.py  #   窗口拾取探测(hover/focus)
 │   └── tpl_crop.py    #   模板裁剪(截窗→框选→存 templates)
@@ -118,6 +119,7 @@ uv run python test/auto_farm/console.py
 | `tpl_crop.py` | 模板裁剪: 截当前鼠标下窗口 → 框选 → 存 templates/*.png |
 | `game_smoke.py` | 游戏冒烟: 识别/点击/击杀/掉落自动验收 |
 | `farm_e2e.py` | 挂机 E2E: 40 秒金币增长自动验收 |
+| `adb_smoke.py` | adb 端冒烟: 发现设备→绑定→图色 DSL→tap→key 全链(需模拟器/真机) |
 
 ### 二开流程(新脚本)
 

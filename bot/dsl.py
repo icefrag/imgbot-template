@@ -40,6 +40,14 @@ _local = threading.local()
 
 _MODIFIERS = ("ctrl", "alt", "shift", "win")
 
+# 安卓键名→keycode(dsl.key 的 adb 分支; 组合键安卓无此语义, 不支持)
+ADB_KEYS = {"home": 3, "back": 4, "menu": 82, "enter": 66, "search": 84,
+            "del": 67, "delete": 67, "tab": 61, "space": 62, "esc": 111,
+            "up": 19, "down": 20, "left": 21, "right": 22,
+            "vol_up": 24, "vol_down": 25, "power": 26,
+            "0": 7, "1": 8, "2": 9, "3": 10, "4": 11, "5": 12, "6": 13,
+            "7": 14, "8": 15, "9": 16}
+
 
 def _bind(ctx):
     """worker 每轮任务前把 ctx 挂到本线程(框架调用, 脚本侧无感)。"""
@@ -111,7 +119,12 @@ def key(s: str):
         for m in reversed(mods):
             dm.KeyUpChar(m)
     else:
-        ctx.device.key(s)                    # adb 侧组合键语义由 device 层定义
+        if mods:
+            raise ValueError(f"adb 端无组合键语义, 单键用键名: {ADB_KEYS}")
+        code = ADB_KEYS.get(main)
+        if code is None:
+            raise ValueError(f"adb 键名未收录(可加进 ADB_KEYS): {main!r}")
+        ctx.device.keyevent(code)
 
 
 # ================= 消息 =================
