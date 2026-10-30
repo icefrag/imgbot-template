@@ -6,10 +6,14 @@
 """
 from __future__ import annotations
 
+import ctypes
+import ctypes.wintypes
 import queue
+import threading
 import time
 import tkinter as tk
 import ttkbootstrap as ttk   # 控件全走 ttkbootstrap(bootstyle 才有效)
+import winsound
 
 from . import backends
 from . import settings
@@ -25,6 +29,8 @@ class Console:
         self.business_mod = business_mod          # business.py(配置 schema+示例)
         self.gcfg = settings.load()
         self.logq: queue.Queue = queue.Queue()
+        self.notifyq: queue.Queue = queue.Queue()  # (kind, title) UI 通知
+        self._toast_win: tk.Toplevel | None = None
         self.workers: dict[str, Worker] = {}      # ident → Worker
         self.hotkey = HotkeyListener(self.gcfg.hotkey_vk, self.on_hotkey)
         self._build()
@@ -87,23 +93,26 @@ class Console:
 
     # ================= Worker 管理(热键/按钮共用) =================
     def on_hotkey(self):
-        """F9: 悬停窗口未收编→拾取并启动; 已收编→切换启停。"""
+        """F9(热键线程): 悬停窗口未收编→拾取并启动; 已收编→切换启停。"""
         hwnd = backends.pick_window(self.gcfg.pick_mode, self.gcfg.window_class)
         if not hwnd:
             return
         ident = str(hwnd)
         w = self.workers.get(ident)
         if w is None:
+            title = backends.window_title(int(hwnd))
             w = Worker(ident, self.gcfg.backend, self.gcfg,
-                       self.business_cfg_value, self.logq)
+                       self.business_cfg_value, self.logq, title)
             self.workers[ident] = w
-            self.logq.put((ident, f"已收编: {backends.window_title(int(hwnd))}",
-                           "info"))
+            self.logq.put((ident, f"已收编: {title}", "info"))
             w.start()
+            self.notifyq.put(("start", title))
         elif w.alive:
             w.stop()
+            self.notifyq.put(("stop", w.title))
         else:
             w.start()
+            self.notifyq.put(("start", w.title))
 
     def _toggle_selected(self):
         sel = self.tree.selection()
@@ -133,8 +142,10 @@ class Console:
             return
         if w.alive and not force_on:
             w.stop()
+            self._show_notify("stop", w.title)
         elif not force_off:
             w.start()
+            self._show_notify("start", w.title)
 
     # ================= 刷新(表格/状态栏) =================
     def _refresh_rows(self):
@@ -166,7 +177,53 @@ class Console:
             self.logbox.config(state="disabled")
             if ident in self.workers:
                 self.workers[ident].last_info = text[:40]
+        while True:                                # UI 通知(热键线程投递来的)
+            try:
+                kind, title = self.notifyq.get_nowait()
+            except queue.Empty:
+                break
+            self._show_notify(kind, title)
         self.root.after(150, self._pump_log)
+
+    # ================= 启停反馈(音效 + 屏幕右下角置顶卡片) =================
+    def _show_notify(self, kind: str, title: str):
+        """主线程调用: kind="start"|"stop"。中控台可能被目标窗口挡住,
+        所以卡片弹在屏幕工作区右下角并置顶, 配音效——不看中控台也有感知。"""
+        beeps = ((880, 120), (1318, 140)) if kind == "start" else ((830, 140), (587, 160))
+        threading.Thread(                          # Beep 同步阻塞, 别冻 UI
+            target=lambda: [winsound.Beep(f, d) for f, d in beeps],
+            daemon=True).start()
+        self._toast(kind, title)
+
+    def _toast(self, kind: str, title: str):
+        if self._toast_win is not None:            # 新通知替换旧卡片
+            try:
+                self._toast_win.destroy()
+            except tk.TclError:
+                pass
+        bg = "#1f6b37" if kind == "start" else "#8a3030"
+        mark = "▶" if kind == "start" else "■"
+        word = "已启动" if kind == "start" else "已停止"
+        t = tk.Toplevel(self.root)
+        t.overrideredirect(True)
+        t.attributes("-topmost", True)
+        tk.Label(t, text=f" {mark} {word} · {title or '目标'} ", bg=bg, fg="white",
+                 font=("Microsoft YaHei UI", 10, "bold"), padx=14, pady=9).pack()
+        t.update_idletasks()
+        w, h = t.winfo_reqwidth(), t.winfo_reqheight()
+        wa = ctypes.wintypes.RECT()                # 工作区右下角(避开任务栏)
+        ctypes.windll.user32.SystemParametersInfoW(0x30, 0, ctypes.byref(wa), 0)
+        t.geometry(f"+{wa.right - w - 16}+{wa.bottom - h - 16}")
+        self._toast_win = t
+        t.after(2500, lambda: self._close_toast(t))
+
+    def _close_toast(self, t: tk.Toplevel):
+        try:
+            t.destroy()
+        except tk.TclError:
+            pass
+        if self._toast_win is t:
+            self._toast_win = None
 
     # ================= 设置弹窗(两 Tab, schema 驱动) =================
     def _open_settings(self):

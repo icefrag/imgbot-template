@@ -55,7 +55,7 @@ def window_title(hwnd: int) -> str:
     n = u32.GetWindowTextLengthW(hwnd)
     buf = ctypes.create_unicode_buffer(n + 1)
     u32.GetWindowTextW(hwnd, buf, n + 1)
-    return buf.value or f"hwnd=0x{hwnd:X}"
+    return buf.value or f"hwnd={hwnd}"
 
 
 # ==================== 绑定与 ctx 组装 ====================

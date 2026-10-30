@@ -27,7 +27,7 @@ def main() -> int:
     if not hwnd:
         print("游戏窗口没找到(先跑 uv run python test/legend_game.py)")
         return 1
-    print(f"游戏 0x{hwnd:X}, 3 秒后开始挂机(Ctrl+C 停止)")
+    print(f"游戏 hwnd={hwnd}, 3 秒后开始挂机(Ctrl+C 停止)")
     time.sleep(3)
 
     logq_queue = __import__("queue").Queue()
