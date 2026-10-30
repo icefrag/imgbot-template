@@ -16,5 +16,10 @@ imgbot = { path = "../imgbot", editable = true }
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
 
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.22.3",
+]
+
 [tool.uv]
 python-install-mirror = "https://mirrors.cloud.tencent.com/python-build-standalone"

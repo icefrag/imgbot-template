@@ -5,3 +5,8 @@ __pycache__/
 # 运行产物(烟测截图/失败留痕)不入库
 logs/
 !logs/.gitkeep
+
+# 发布产物
+dist/
+build/
+*.spec

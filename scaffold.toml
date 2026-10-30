@@ -1,0 +1,16 @@
+backend = "window"
+window_class = ""
+display = "normal"
+mouse = "normal"
+keypad = "normal"
+adb_serials = []
+hotkey_vk = 120
+pick_mode = "hover"
+max_restarts = 3
+loop_interval = 1.0
+window_size = [
+    1280,
+    800,
+]
+left_ratio = 0.45
+theme = "darkly"

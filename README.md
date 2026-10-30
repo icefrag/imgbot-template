@@ -64,9 +64,16 @@ uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10
 7. **验证 + 首提交**: `uv run console.py` → 开目标窗口 → 悬停按 F9 收编 → 跑通一轮
    → `git init` 首提交。
 
-## 发布(未实现, 预留)
+## 发布
 
-`build_exe.py`: PyInstaller onedir(源码冻结进 exe) + `bin/` 潜影注入件 + templates —— 绿色 zip 与安装器同一目录形态。
+```bash
+uv run build_exe.py        # 名字/版本取自 pyproject.toml
+```
+
+产物 `dist/<名>-v<版本>.zip`(绿色包, 目标机零 python):exe + `_internal/`(依赖
+全冻)+ `bin/`(潜影注入件)+ `templates/` + `scaffold.toml`——后两者摆 exe 旁,
+用户可编辑;`business.yaml`/`logs/` 首次运行自动生成。**bin/ 注入件会被
+Defender 报毒, 发布机与目标机都需加排除目录**(交接运维常识)。
 
 ---
 
