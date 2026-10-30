@@ -153,6 +153,20 @@ def main_task(ctx):
 | `ctx.cfg` | ✅ 业务配置对象 | ✅ |
 | `ctx.log` / `ctx.stop` / `ctx.shot(tag)` | ✅ | ✅ |
 
+### 熔断恢复钩子(on_fuse)
+
+连续异常超过 `max_restarts` 次熔断前, worker 给业务一次自愈机会——`task.py` 里定义:
+
+```python
+def on_fuse(ctx) -> bool:
+    """重启游戏→重新登录→进挂机地图; 全部就绪返回 True。"""
+    ...重启登录流程...
+    return True
+```
+
+返回 True = 已恢复(重开计数清零继续挂);不定义/返回 False/自身抛异常 = 维持熔断
+躺平(现状行为, 零侵入)。这是"挂过夜"和"挂两小时就断"的分界线。
+
 ### 中控台
 
 - **F9 热键收编**: 鼠标悬停目标窗口按 F9 → 加入表格并启动; 再按停止。拾取方式(hover/focus)在 scaffold.toml

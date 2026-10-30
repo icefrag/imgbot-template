@@ -50,6 +50,25 @@ class Worker:
             self.thread.join(join_s)
 
     # -- 内部 --
+    def _try_fuse_hook(self, task_mod, ctx) -> bool:
+        """熔断前给业务一次自愈机会: task.py 里定义 on_fuse(ctx) -> bool
+        (重启游戏/重新登录等), 返回 True = 已恢复(重开计数清零继续挂);
+        没定义/返回假/自身炸 = 维持熔断躺平。"""
+        fuse = getattr(task_mod, "on_fuse", None)
+        if fuse is None:
+            return False
+        self.log("熔断, 调业务恢复钩子 on_fuse…", "warn")
+        try:
+            if fuse(ctx):
+                self.restarts = 0
+                self.state = "运行中"
+                self.log("on_fuse 恢复成功, 重开计数清零", "info")
+                return True
+            self.log("on_fuse 返回未恢复, 维持熔断", "error")
+        except Exception as e:
+            self.log(f"on_fuse 失败: {e!r}", "error")
+        return False
+
     def _run(self):
         """绑定 → 任务循环(异常重开/熔断) → 收口。一次线程调用跑到底。"""
         ctx = None
@@ -81,6 +100,8 @@ class Worker:
                     self.restarts += 1
                     ctx.shot("异常")              # 留痕(spec: 验收门槛)
                     if self.restarts > self.gcfg.max_restarts:
+                        if self._try_fuse_hook(task_mod, ctx):
+                            continue             # 业务自愈成功, 计数已清零
                         self.state = "异常(熔断)"
                         self.log(f"连败 {self.restarts} 次熔断: {e!r}", "error")
                         return
