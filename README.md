@@ -35,6 +35,7 @@ uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10
 │   ├── game_smoke.py  #   游戏冒烟(识别/点击/击杀/掉落)
 │   ├── farm_e2e.py    #   挂机 E2E(金币增长验证)
 │   ├── adb_smoke.py   #   adb 端冒烟(模拟器/真机: 绑定→图色 DSL→tap→key)
+│   ├── nav_smoke.py   #   Nav 导航接入冒烟(离线: 声明表建图→go/at→迷路自愈)
 │   ├── auto_farm/     #   挂机辅助项目(基于脚手架二开的示范)
 │   ├── pick_probe.py  #   窗口拾取探测(hover/focus)
 │   └── tpl_crop.py    #   模板裁剪(截窗→框选→存 templates)
@@ -120,6 +121,7 @@ uv run python test/auto_farm/console.py
 | `game_smoke.py` | 游戏冒烟: 识别/点击/击杀/掉落自动验收 |
 | `farm_e2e.py` | 挂机 E2E: 40 秒金币增长自动验收 |
 | `adb_smoke.py` | adb 端冒烟: 发现设备→绑定→图色 DSL→tap→key 全链(需模拟器/真机) |
+| `nav_smoke.py` | Nav 接入冒烟(离线): 声明表建图→go BFS 带路→迷路重定位→LostError |
 
 ### 二开流程(新脚本)
 
@@ -161,6 +163,31 @@ def main_task(ctx):
 | `ctx.device` | — | ✅ AdbTarget(actions.* 魔神方言) |
 | `ctx.cfg` | ✅ 业务配置对象 | ✅ |
 | `ctx.log` / `ctx.stop` / `ctx.shot(tag)` | ✅ | ✅ |
+
+### 界面导航(Nav, 可选): 网状界面的声明式带路
+
+游戏界面多级菜单/弹窗多、挂机要长跑(崩溃恢复/断线重连)时, 在 task.py 顶部
+声明三张表, 框架自动建图(worker 发现表才建, 无表零影响):
+
+```python
+NAV_SCREENS = {"city": "nav/city_hud.png",                   # 锚点图(一屏一张)
+               "dungeon": ("nav/dg_title.png", (0, 0, 300, 80))}   # 位置固定就限矩形
+NAV_EDGES = {("city", "dungeon"): "nav/dg_btn.png",          # 模板名=找到就点
+             ("dungeon", "city"): _back_to_city}             # 或函数(组 ops 原语)
+NAV_INTERRUPTS = ["nav/reward_ok.png"]                       # 任意屏会冒的弹窗
+
+def main_task(ctx):
+    if not go("dungeon"):          # 图自动带路: BFS+落点验证+迷路重定位自愈
+        return
+    ...界面内操作(战斗/领奖, 普通命令)...
+```
+
+- `go("屏名")` 到达 True / 超时安静 False; `at("屏名")` 便宜的单帧期望验证
+- **迷路且重定位失败抛 `LostError`** → 任务异常重开 → 再迷路 → 熔断 →
+  `on_fuse` 重登 —— 和熔断钩子天然咬合成完整恢复线
+- 锚点资产 `templates/nav/屏名.png`(tpl_crop 裁好归档); 界面内操作不进图,
+  做完需要"换界面验证"的动作才是边
+- 单主循环线性脚本用不上(表驱动 wait_pic 已够), 别为上图上图
 
 ### 熔断恢复钩子(on_fuse)
 

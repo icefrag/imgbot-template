@@ -87,6 +87,7 @@ class Worker:
 
             # 任务入口(business 逻辑): 框架只负责把它跑起来
             import task as task_mod              # 项目根的 task.py
+            ctx.nav = backends.build_nav(task_mod, ctx)   # 声明表→导航图(无表 None)
             while not self.stop_event.is_set():
                 try:
                     task_mod.main_task(ctx)

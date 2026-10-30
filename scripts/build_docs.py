@@ -36,6 +36,7 @@ GROUPS = [
     ("等待(超时返 None/False)", ["wait_pic", "wait_pic_any", "wait_pic_gone",
                                 "wait_color", "wait_color_gone", "wait_text"]),
     ("识字 / 找字(OCR)", ["ocr", "ocr_numbers", "find_str"]),
+    ("导航(需 task.py 声明表)", ["go", "at"]),
 ]
 
 EXAMPLES = {
@@ -61,6 +62,8 @@ EXAMPLES = {
     "ocr": 'task = ocr(region=(10, 30, 400, 60))          # 识全文: "每日签到 副本"\nif "签到" in task: ...          # 任务名判断',
     "ocr_numbers": 'nums = ocr_numbers(region=(50, 580, 200, 610))\nlv = nums[0] if nums else 0          # 等级\n# 坐标场景: x, y = ocr_numbers(POS_RECT)[:2]',
     "find_str": 'hit = find_str("每日签到")                     # 找字位置 (x, y) | None\nif hit: click(*hit)                  # 找到就能点\n# 短词(2字)不稳: 缩 region + min_ratio=0.5',
+    "go": 'if not go("dungeon"): return        # 图带路(声明 NAV_SCREENS/NAV_EDGES)\n# 迷路自愈; LostError=需重登(配 on_fuse)',
+    "at": 'if at("city"): ...                  # 便宜的单帧"我在不在这屏"',
 }
 
 RULES = """<h2>四条铁律</h2>

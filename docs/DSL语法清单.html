@@ -62,4 +62,9 @@ def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动�
 <tr><td><code>ocr_numbers</code></td><td><code>ocr_numbers(region=None)</code></td><td>识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。</td></tr>
 <tr><td><code>find_str</code></td><td><code>find_str(text, region=None, min_ratio=0.7)</code></td><td>找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,</td></tr>
 </table>
+<h2>导航(需 task.py 声明表)</h2>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>go</code></td><td><code>go(name, timeout=120000)</code></td><td>走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静</td></tr>
+<tr><td><code>at</code></td><td><code>at(name)</code></td><td>期望验证: 当前是否在指定界面(单帧一张锚点, 高频便宜; 迷路判别用 go)。</td></tr>
+</table>
 </body></html>

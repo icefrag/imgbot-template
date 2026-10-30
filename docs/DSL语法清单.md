@@ -56,6 +56,13 @@
 | **ocr_numbers** | `ocr_numbers(region=None)` | 识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。 |
 | **find_str** | `find_str(text, region=None, min_ratio=0.7)` | 找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None, |
 
+## 导航(需 task.py 声明表)
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **go** | `go(name, timeout=120000)` | 走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静 |
+| **at** | `at(name)` | 期望验证: 当前是否在指定界面(单帧一张锚点, 高频便宜; 迷路判别用 go)。 |
+
 ## 示例速查
 
 **click**
@@ -176,4 +183,15 @@ lv = nums[0] if nums else 0          # 等级
 hit = find_str("每日签到")                     # 找字位置 (x, y) | None
 if hit: click(*hit)                  # 找到就能点
 # 短词(2字)不稳: 缩 region + min_ratio=0.5
+```
+
+**go**
+```python
+if not go("dungeon"): return        # 图带路(声明 NAV_SCREENS/NAV_EDGES)
+# 迷路自愈; LostError=需重登(配 on_fuse)
+```
+
+**at**
+```python
+if at("city"): ...                  # 便宜的单帧"我在不在这屏"
 ```

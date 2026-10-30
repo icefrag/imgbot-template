@@ -1,0 +1,10 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
+<h1><code>go</code></h1>
+<p>走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静</p>
+<h2>原型</h2>
+<pre>go(name, timeout=120000)</pre>
+False; 迷路且重定位失败抛 LostError(交给熔断 on_fuse 走重登线)。<br>需要 task.py 声明 NAV_SCREENS/NAV_EDGES(没有就只是普通脚本, 别调)。
+<h2>示例</h2>
+<pre>if not go("dungeon"): return        # 图带路(声明 NAV_SCREENS/NAV_EDGES)
+# 迷路自愈; LostError=需重登(配 on_fuse)</pre>
+</body></html>

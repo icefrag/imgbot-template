@@ -119,5 +119,18 @@
 		<param name="Local" value="c5/p5-2.html">
 		</OBJECT>
 	</UL>
+	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="导航(需 task.py 声明表)">
+	</OBJECT>
+	<UL>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="go">
+		<param name="Local" value="c6/p6-0.html">
+		</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="at">
+		<param name="Local" value="c6/p6-1.html">
+		</OBJECT>
+	</UL>
 </UL>
 </BODY></HTML>

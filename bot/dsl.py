@@ -28,6 +28,9 @@
         ocr_numbers(region) -> [23, 456]       抠数字(等级取[0], 坐标取[:2])
   找字  find_str(text, region) -> (x, y) | None  找文字位置(大漠 FindStr 风,
         找到就能点; 关键词 ≥4 字才稳)
+  导航  go("dungeon") -> bool   界面导航图带路(task.py 声明 NAV_SCREENS/NAVEDGES,
+        迷路自动重定位自愈; 迷路且重定位失败抛 LostError → 配 on_fuse 重登)
+        at("city") -> bool      期望验证: 是否在指定界面(单帧一张锚点, 便宜)
 """
 from __future__ import annotations
 
@@ -69,6 +72,7 @@ __all__ = [
     "wait_pic", "wait_pic_any", "wait_pic_gone",
     "wait_color", "wait_color_gone", "wait_text",
     "ocr", "ocr_numbers", "find_str", "Pt",
+    "go", "at",
 ]
 
 
@@ -242,3 +246,22 @@ def find_str(text: str, region=None, min_ratio: float = 0.7):
     低, 需缩 region 并降 min_ratio。"""
     hit = _ctx().ops.find_text(text, region, min_ratio)
     return (hit[0], hit[1]) if hit else None
+
+
+# ================= 界面导航(task.py 声明表驱动, 见 backends.build_nav) =================
+def go(name: str, timeout: int = 120000) -> bool:
+    """走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静
+    False; 迷路且重定位失败抛 LostError(交给熔断 on_fuse 走重登线)。
+    需要 task.py 声明 NAV_SCREENS/NAV_EDGES(没有就只是普通脚本, 别调)。"""
+    ctx = _ctx()
+    if ctx.nav is None:
+        raise RuntimeError("task.py 未声明 NAV_SCREENS/NAV_EDGES, 没有导航图可用")
+    return ctx.nav.go(name, timeout=timeout / 1000, stop=ctx.stop)
+
+
+def at(name: str) -> bool:
+    """期望验证: 当前是否在指定界面(单帧一张锚点, 高频便宜; 迷路判别用 go)。"""
+    ctx = _ctx()
+    if ctx.nav is None:
+        raise RuntimeError("task.py 未声明 NAV_SCREENS, 没有导航图可用")
+    return ctx.nav.at(name)

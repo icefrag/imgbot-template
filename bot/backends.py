@@ -63,7 +63,7 @@ class Ctx:
     """任务代码的全部世界(见 spec.md ctx 字段表)。字段按端装配。"""
 
     def __init__(self, backend: str, name: str, cfg, log, stop,
-                 dm=None, ops=None, device=None):
+                 dm=None, ops=None, device=None, nav=None):
         self.backend = backend
         self.name = name                          # 显示名(表格行/日志前缀)
         self.cfg = cfg                            # 业务配置对象
@@ -72,6 +72,7 @@ class Ctx:
         self.dm = dm
         self.ops = ops
         self.device = device
+        self.nav = nav                            # 界面导航图(task 声明表时由 worker 建)
 
     def shot(self, tag: str = "") -> Path | None:
         """失败留痕: window 端存当前帧, adb 端存设备截图。"""
@@ -128,6 +129,34 @@ def bind_adb_backend(serial: str, scaffold, business_cfg, log, stop) -> Ctx:
     ops = Ops(dm)
     return Ctx("adb", serial, business_cfg, log, stop,
                device=target, ops=ops, dm=dm)
+
+
+def build_nav(task_mod, ctx) -> "object | None":
+    """按 task.py 的声明表建 Nav(imgbot.nav 界面导航图), 无表返回 None。
+
+    三张表(全部可选, 但要 go()/at() 至少得有 NAV_SCREENS+NAV_EDGES):
+      NAV_SCREENS = {"city": "nav/city_hud.png",              # 锚点图
+                     "dungeon": ("nav/dg_title.png", (0,0,300,80))}  # +限矩形
+      NAV_EDGES = {("city", "dungeon"): "nav/dg_btn.png",     # 模板名=找到就点
+                   ("dungeon", "city"): _back_to_city}        # 或函数(组 ops 原语)
+      NAV_INTERRUPTS = ["nav/reward_ok.png"]                   # 任意屏会冒的弹窗
+    """
+    screens = getattr(task_mod, "NAV_SCREENS", None)
+    if not screens:
+        return None
+    from imgbot.nav import Nav
+    nav = Nav(ctx.ops)
+    for name, spec in screens.items():
+        anchor, region = spec if isinstance(spec, tuple) else (spec, None)
+        nav.screen(name, anchor, region=region)
+    for (src, dst), act in getattr(task_mod, "NAV_EDGES", {}).items():
+        if callable(act):
+            nav.edge(src, dst, act)
+        else:                                    # 模板名: 等按钮出现(8s)点了就走
+            nav.edge(src, dst,
+                     lambda t=act: ctx.ops.find_tap(t, timeout=8))
+    nav.on_interrupt(list(getattr(task_mod, "NAV_INTERRUPTS", [])))
+    return nav
 
 
 def unbind(ctx: Ctx) -> None:
