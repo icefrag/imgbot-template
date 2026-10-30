@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-imgbot = { path = "../imgbot" }
+imgbot = { path = "../imgbot", editable = true }
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"

@@ -23,9 +23,9 @@ def gold_and_level(img):
 
 def main() -> int:
     # 开游戏(干净实例)
-    subprocess.Popen([sys.executable, str(HERE.parent / "legend_game.py")],
+    subprocess.Popen([sys.executable, str(HERE / "legend_game.py")],
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    time.sleep(3)
+    time.sleep(6)                # 游戏冷启动(numpy+tkinter)3 秒会卡线
     hwnd = find_game()
     assert hwnd, "游戏窗口没找到"
     print(f"[1] 游戏 0x{hwnd:X}")
@@ -36,7 +36,7 @@ def main() -> int:
 
     # 开挂机(单开入口, 后台)
     farm = subprocess.Popen(
-        [sys.executable, str(HERE / "main.py")],
+        [sys.executable, str(HERE / "auto_farm" / "main.py")],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print("[3] 挂机已启动, 跑 40 秒…")
     deadline = time.time() + 40
