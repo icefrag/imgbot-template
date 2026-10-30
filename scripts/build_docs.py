@@ -35,7 +35,7 @@ GROUPS = [
     ("复合动作", ["find_tap", "tap_until_gone"]),
     ("等待(超时返 None/False)", ["wait_pic", "wait_pic_any", "wait_pic_gone",
                                 "wait_color", "wait_color_gone", "wait_text"]),
-    ("读数", ["read_text"]),
+    ("识字 / 找字(OCR)", ["ocr", "ocr_numbers", "find_str"]),
 ]
 
 EXAMPLES = {
@@ -57,8 +57,10 @@ EXAMPLES = {
     "wait_pic_gone": 'while not wait_pic_gone("加载中.png", timeout=15000): pass',
     "wait_color": 'hit = wait_color("FFD700")                    # 金币转圈 (x,y)|None',
     "wait_color_gone": 'ok = wait_color_gone("CC3333-282828", timeout=10000)  # 等怪死',
-    "wait_text": 'hit = wait_text("挑战成功")                    # OCR (x,y,相似度)|None',
-    "read_text": 'text = read_text(region=(10, 600, 300, 640))   # 状态栏 OCR',
+    "wait_text": 'hit = wait_text("挑战成功")                    # OCR 等文字 (x,y,相似度)|None',
+    "ocr": 'task = ocr(region=(10, 30, 400, 60))          # 识全文: "每日签到 副本"\nif "签到" in task: ...          # 任务名判断',
+    "ocr_numbers": 'nums = ocr_numbers(region=(50, 580, 200, 610))\nlv = nums[0] if nums else 0          # 等级\n# 坐标场景: x, y = ocr_numbers(POS_RECT)[:2]',
+    "find_str": 'hit = find_str("每日签到")                     # 找字位置 (x, y) | None\nif hit: click(*hit)                  # 找到就能点\n# 短词(2字)不稳: 缩 region + min_ratio=0.5',
 }
 
 RULES = """<h2>四条铁律</h2>

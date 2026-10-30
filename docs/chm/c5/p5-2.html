@@ -1,0 +1,11 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
+<h1><code>find_str</code></h1>
+<p>找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,</p>
+<h2>原型</h2>
+<pre>find_str(text, region=None, min_ratio=0.7)</pre>
+找到就能点。关键词 ≥4 字才稳(实测 7 字错 1 字仍命中); 2 字短词比例上限<br>低, 需缩 region 并降 min_ratio。
+<h2>示例</h2>
+<pre>hit = find_str("每日签到")                     # 找字位置 (x, y) | None
+if hit: click(*hit)                  # 找到就能点
+# 短词(2字)不稳: 缩 region + min_ratio=0.5</pre>
+</body></html>

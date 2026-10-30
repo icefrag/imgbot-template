@@ -1,9 +1,10 @@
 <html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
-<h1><code>read_text</code></h1>
-<p></p>
+<h1><code>ocr</code></h1>
+<p>识字: OCR 读区域全文, 行间空格连接("任务名叫什么"用这个)。</p>
 <h2>原型</h2>
-<pre>read_text(region=None)</pre>
-
+<pre>ocr(region=None, fast=False)</pre>
+fast=True 走快引擎: 只给"大字窄条"场景(板面标题行), 小字会漏读。
 <h2>示例</h2>
-<pre>text = read_text(region=(10, 600, 300, 640))   # 状态栏 OCR</pre>
+<pre>task = ocr(region=(10, 30, 400, 60))          # 识全文: "每日签到 副本"
+if "签到" in task: ...          # 任务名判断</pre>
 </body></html>

@@ -48,11 +48,13 @@
 | **wait_color_gone** | `wait_color_gone(color, region=None, timeout=10000)` | 等某色消失(等击杀/等加载), 消失 True / 超时 False。 |
 | **wait_text** | `wait_text(text, region=None, timeout=10000)` | OCR 等文字出现("完成"提示类), 返回 (中心x, 中心y, 相似度) 或 None。 |
 
-## 读数
+## 识字 / 找字(OCR)
 
 | 命令 | 原型 | 说明 |
 |---|---|---|
-| **read_text** | `read_text(region=None)` |  |
+| **ocr** | `ocr(region=None, fast=False)` | 识字: OCR 读区域全文, 行间空格连接("任务名叫什么"用这个)。 |
+| **ocr_numbers** | `ocr_numbers(region=None)` | 识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。 |
+| **find_str** | `find_str(text, region=None, min_ratio=0.7)` | 找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None, |
 
 ## 示例速查
 
@@ -153,10 +155,25 @@ ok = wait_color_gone("CC3333-282828", timeout=10000)  # 等怪死
 
 **wait_text**
 ```python
-hit = wait_text("挑战成功")                    # OCR (x,y,相似度)|None
+hit = wait_text("挑战成功")                    # OCR 等文字 (x,y,相似度)|None
 ```
 
-**read_text**
+**ocr**
 ```python
-text = read_text(region=(10, 600, 300, 640))   # 状态栏 OCR
+task = ocr(region=(10, 30, 400, 60))          # 识全文: "每日签到 副本"
+if "签到" in task: ...          # 任务名判断
+```
+
+**ocr_numbers**
+```python
+nums = ocr_numbers(region=(50, 580, 200, 610))
+lv = nums[0] if nums else 0          # 等级
+# 坐标场景: x, y = ocr_numbers(POS_RECT)[:2]
+```
+
+**find_str**
+```python
+hit = find_str("每日签到")                     # 找字位置 (x, y) | None
+if hit: click(*hit)                  # 找到就能点
+# 短词(2字)不稳: 缩 region + min_ratio=0.5
 ```

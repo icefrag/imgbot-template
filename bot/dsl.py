@@ -24,10 +24,14 @@
         wait_pic_any(pics) -> (名, x, y, 分数) | None
         wait_pic_gone(pic) -> bool      wait_color(color) -> (x, y) | None
         wait_color_gone(color) -> bool  wait_text(text) -> (x, y, 相似度) | None
-  读数  read_text(region) -> str
+  识字  ocr(region) -> str                    读全文("任务名叫什么")
+        ocr_numbers(region) -> [23, 456]       抠数字(等级取[0], 坐标取[:2])
+  找字  find_str(text, region) -> (x, y) | None  找文字位置(大漠 FindStr 风,
+        找到就能点; 关键词 ≥4 字才稳)
 """
 from __future__ import annotations
 
+import re
 import threading
 
 from imgbot.vision import Pt
@@ -55,7 +59,8 @@ __all__ = [
     "find_color", "find_all", "find_multi_color", "exists",
     "find_tap", "tap_until_gone",
     "wait_pic", "wait_pic_any", "wait_pic_gone",
-    "wait_color", "wait_color_gone", "wait_text", "read_text", "Pt",
+    "wait_color", "wait_color_gone", "wait_text",
+    "ocr", "ocr_numbers", "find_str", "Pt",
 ]
 
 
@@ -205,6 +210,22 @@ def wait_text(text: str, region=None, timeout: int = 10000):
                                 stop=_ctx().stop)
 
 
-# ================= 读数 =================
-def read_text(region=None) -> str:
-    return _ctx().ops.read_text(region)
+# ================= 识字 / 找字(OCR) =================
+def ocr(region=None, fast: bool = False) -> str:
+    """识字: OCR 读区域全文, 行间空格连接("任务名叫什么"用这个)。
+    fast=True 走快引擎: 只给"大字窄条"场景(板面标题行), 小字会漏读。"""
+    return _ctx().ops.read_text(region, fast)
+
+
+def ocr_numbers(region=None) -> list[int]:
+    """识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。
+    小字体数字不准时缩 region, 或走 ctx.ops.read_number 字模重武器。"""
+    return [int(n) for n in re.findall(r"\d+", ocr(region))]
+
+
+def find_str(text: str, region=None, min_ratio: float = 0.7):
+    """找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,
+    找到就能点。关键词 ≥4 字才稳(实测 7 字错 1 字仍命中); 2 字短词比例上限
+    低, 需缩 region 并降 min_ratio。"""
+    hit = _ctx().ops.find_text(text, region, min_ratio)
+    return (hit[0], hit[1]) if hit else None

@@ -103,12 +103,20 @@
 		</OBJECT>
 	</UL>
 	<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="¶ÁÊý">
+		<param name="Name" value="Ê¶×Ö / ÕÒ×Ö(OCR)">
 	</OBJECT>
 	<UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="read_text">
+		<param name="Name" value="ocr">
 		<param name="Local" value="c5/p5-0.html">
+		</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="ocr_numbers">
+		<param name="Local" value="c5/p5-1.html">
+		</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="find_str">
+		<param name="Local" value="c5/p5-2.html">
 		</OBJECT>
 	</UL>
 </UL>

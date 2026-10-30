@@ -56,8 +56,10 @@ def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动�
 <tr><td><code>wait_color_gone</code></td><td><code>wait_color_gone(color, region=None, timeout=10000)</code></td><td>等某色消失(等击杀/等加载), 消失 True / 超时 False。</td></tr>
 <tr><td><code>wait_text</code></td><td><code>wait_text(text, region=None, timeout=10000)</code></td><td>OCR 等文字出现("完成"提示类), 返回 (中心x, 中心y, 相似度) 或 None。</td></tr>
 </table>
-<h2>读数</h2>
+<h2>识字 / 找字(OCR)</h2>
 <table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
-<tr><td><code>read_text</code></td><td><code>read_text(region=None)</code></td><td></td></tr>
+<tr><td><code>ocr</code></td><td><code>ocr(region=None, fast=False)</code></td><td>识字: OCR 读区域全文, 行间空格连接("任务名叫什么"用这个)。</td></tr>
+<tr><td><code>ocr_numbers</code></td><td><code>ocr_numbers(region=None)</code></td><td>识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。</td></tr>
+<tr><td><code>find_str</code></td><td><code>find_str(text, region=None, min_ratio=0.7)</code></td><td>找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,</td></tr>
 </table>
 </body></html>
