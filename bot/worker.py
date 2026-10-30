@@ -10,13 +10,14 @@ import threading
 import time
 import traceback
 
-from . import backends, settings
+from . import backends, dsl, settings
 
 
 class Worker:
     def __init__(self, ident: str, backend: str, gcfg: settings.ScaffoldConfig,
-                 business_cfg, logq):
+                 business_cfg, logq, title: str = ""):
         self.ident = ident                        # window: hwnd | adb: serial
+        self.title = title                        # 展示名(窗口标题/设备名)
         self.backend = backend
         self.gcfg = gcfg
         self.business_cfg = business_cfg
@@ -63,6 +64,7 @@ class Worker:
                     self.ident, self.gcfg, self.business_cfg,
                     self.log, self.stop_event)
             self.log(f"已绑定({self.backend}), 任务开始")
+            dsl._bind(ctx)                    # DSL 顶层动词从此线程可见
 
             # 任务入口(business 逻辑): 框架只负责把它跑起来
             import task as task_mod              # 项目根的 task.py

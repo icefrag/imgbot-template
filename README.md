@@ -26,6 +26,7 @@ uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10
 │   ├── worker.py      #   生命周期: 绑定→ctx→任务→异常重开→收口
 │   ├── backends.py    #   adb / window 两端(发现/绑定/ctx 组装)
 │   ├── hotkeys.py     #   F9 热键收编(hover/focus 拾取)
+│   ├── dsl.py         #   顶层命令表(click/key/wait_pic/..., task.py import * 直用)
 │   ├── settings.py    #   scaffold.toml 读写
 │   ├── store.py       #   business.yaml 读写
 │   └── console_ui.py  #   中控台 UI
@@ -39,6 +40,29 @@ uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10
 ├── templates/         # 图色素材 PNG
 └── logs/              # 运行产物(shots 留痕, gitignore)
 ```
+
+## AI 拷贝规程(基于本脚手架新建项目)
+
+给 AI 会话的硬规程,按序执行,每步带验收。目录名可中文;`pyproject.toml` 的 `name` 用英文。
+
+1. **整目录拷贝改名**: 复制本目录 → 新位置(如 `D:\script-workspace\龙谷助手`)。
+   排除 `.git/`、`.scratch/`、`logs/`、`__pycache__/`、`.venv/`;`uv.lock` 一并拷走。
+   验收: 新目录含 `bot/` `main.py` `console.py` `business.py` `task.py` `scaffold.toml` `pyproject.toml` `uv.lock` `templates/`。
+2. **imgbot path 引用**: `pyproject.toml` 的 `[tool.uv.sources] imgbot = { path = "../imgbot", editable = true }`。
+   新项目与 imgbot 仓同级则不改;不同级改成实际路径。改完 `uv sync`(lock 随之更新)。
+   **必须 editable**: 否则 venv 里是安装快照, imgbot 仓改了代码这边静默跑旧版。
+   验收: `uv sync` 无错,`uv run python -c "import imgbot"` 通过。
+3. **改名**: `pyproject.toml` 的 `name`/`description` 换成新项目。
+4. **写业务,只动两个 ★ 文件**: 覆写根 `task.py`(`main_task(ctx)` + 子任务函数,一律吃 ctx;
+   出厂打字示例整段替换)与 `business.py`(dataclass + FIELD_META,中控台弹窗自动生成)。
+   **禁止**: 改 `bot/`;写 `IMGBOT_TEMPLATE_ROOT`/sys.path 引导——那是仓内 `test/auto_farm`
+   寄生上层 `bot/` 的做法,拷出的项目自带 `bot/`,不需要。
+5. **清理模板自留件**: `test/` 只保留 `tpl_crop.py`(模板裁剪)与 `pick_probe.py`(窗口探测),
+   其余(`legend_game.py` 靶场、`game_smoke.py`、`farm_e2e.py`、`auto_farm/` 示范)删除;
+   根 `selfcheck.py` 是出厂打字示例的自检,task.py 覆写后即失效,一并删除。
+6. **素材**: 模板 PNG 进 `templates/`(`uv run python test/tpl_crop.py` 截目标窗口裁剪)。
+7. **验证 + 首提交**: `uv run console.py` → 开目标窗口 → 悬停按 F9 收编 → 跑通一轮
+   → `git init` 首提交。
 
 ## 发布(未实现, 预留)
 
@@ -95,6 +119,29 @@ uv run python test/auto_farm/console.py
 3. `task.py` 写 `main_task(ctx)` + 子任务(或让 AI 写)
 4. `test/tpl_crop.py` / pixpick 制作素材进 `templates/`
 5. `uv run main.py`(单开)或 `uv run console.py`(多开)
+
+### DSL 顶层命令(task.py 免前缀)
+
+task.py 顶部 `from bot.dsl import *` 后, 挂机动词直接写: `click(231, 347)`、
+`key("ctrl+s")`、`sleep(500)`。速查表在 `bot/dsl.py` 模块头(权威版), 要点:
+
+- **凡时间皆毫秒**: `sleep(500)` = 半秒, `wait_pic(..., timeout=10000)` = 10 秒(默认)
+- **找不到/超时返回 None 或 False, 不抛异常**: "没找到"是挂机常态; 真故障由框架重开兜底
+- **F9 停止贯穿**所有 sleep 与等待, 按下即醒即退
+- 招牌复合动作: `find_tap(找到就点)` / `tap_until_gone(连点到消失)`
+- 冷门动作(`wait_until/retry/swipe_find/read_number/...`)与窗口管理走
+  `ctx.ops / ctx.dm / ctx.device` 逃生舱, 能力一分不少
+
+```python
+from bot.dsl import *          # 唯一的前缀
+
+def main_task(ctx):
+    hit = find_color("CC3333", tol=40)          # [(x, y), ...] 或 []
+    if hit:
+        click(*hit[0])
+        if wait_color_gone("CC3333-282828", timeout=10000):
+            log("击杀")
+```
 
 ### ctx 一览(任务代码的全部世界)
 
