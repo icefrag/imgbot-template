@@ -40,11 +40,10 @@ def main() -> int:
         return r.returncode
 
     app = ROOT / "dist" / name
-    print("[2] 摆 exe 旁的用户区(templates/scaffold.toml)…")
+    print("[2] 摆 exe 旁的用户区(templates)…")
     shutil.copytree(ROOT / "templates", app / "templates", dirs_exist_ok=True)
-    src_toml = ROOT / "scaffold.toml"               # 源配置(开发者默认值)进包;
-    if src_toml.exists():                            # 不能 settings.save —— 它写源 ROOT
-        shutil.copy(src_toml, app / "scaffold.toml")
+    # scaffold.toml 不摆: 发布形态脚手架配置编译期定死(代码内默认值),
+    # 用户只见业务配置; 开发期照常 ROOT/scaffold.toml
     bin_src = IMGBOT / "imgbot" / "dx" / "bin"
     if bin_src.exists():
         print("[3] 拷潜影注入件 bin/…")

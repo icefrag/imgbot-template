@@ -8,13 +8,17 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes
+import json
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
+from tkinter import simpledialog
 import ttkbootstrap as ttk   # 控件全走 ttkbootstrap(bootstyle 才有效)
 import winsound
 
+from . import ROOT
 from . import backends
 from . import settings
 from .hotkeys import HotkeyListener
@@ -22,6 +26,19 @@ from .worker import Worker
 
 _LOG_COLORS = {"info": "#d0d0d0", "warn": "#e6b84c", "error": "#e05c5c"}
 _ROW_TAGS = {"running": "green", "error": "red", "done": "blue", "idle": "gray"}
+_ALIAS_PATH = ROOT / "aliases.json"
+
+
+def _load_aliases() -> dict:
+    try:
+        return json.loads(_ALIAS_PATH.read_text("utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_aliases(d: dict) -> None:
+    _ALIAS_PATH.write_text(json.dumps(d, ensure_ascii=False, indent=1),
+                           encoding="utf-8")
 
 
 class Console:
@@ -31,6 +48,7 @@ class Console:
         self.logq: queue.Queue = queue.Queue()
         self.notifyq: queue.Queue = queue.Queue()  # (kind, title) UI 通知
         self._toast_win: tk.Toplevel | None = None
+        self.aliases: dict = _load_aliases()        # hwnd→别名(改名持久化)
         self.workers: dict[str, Worker] = {}      # ident → Worker
         self.hotkey = HotkeyListener(self.gcfg.hotkey_vk, self.on_hotkey)
         self._build()
@@ -65,16 +83,17 @@ class Console:
                     width=int((w - 24) * (1 - self.gcfg.left_ratio)),
                     height=h - 110)
 
-        cols = ("name", "backend", "state", "info")
+        cols = ("name", "state", "info", "preview")
         self.tree = ttk.Treeview(left, columns=cols, show="headings", height=12)
-        for cid, text, wd in (("name", "目标", 130), ("backend", "后端", 70),
-                              ("state", "状态", 90), ("info", "最近信息", 200)):
+        for cid, text, wd in (("name", "窗口标题", 150), ("state", "状态", 80),
+                              ("info", "最近信息", 205), ("preview", "预览", 46)):
             self.tree.heading(cid, text=text)
             self.tree.column(cid, width=wd, anchor="w")
         for tag, color in _ROW_TAGS.items():
             self.tree.tag_configure(tag, foreground=color)
         self.tree.pack(fill="both", expand=True)
-        self.tree.bind("<Double-1>", lambda e: self._toggle_selected())
+        self.tree.bind("<Double-1>", self._on_double)
+        self.tree.bind("<Button-1>", self._on_cell_click)
 
         btns = ttk.Frame(left)
         btns.pack(fill="x", pady=4)
@@ -100,7 +119,7 @@ class Console:
         ident = str(hwnd)
         w = self.workers.get(ident)
         if w is None:
-            title = backends.window_title(int(hwnd))
+            title = self.aliases.get(ident) or backends.window_title(int(hwnd))
             w = Worker(ident, self.gcfg.backend, self.gcfg,
                        self.business_cfg_value, self.logq, title)
             self.workers[ident] = w
@@ -118,6 +137,39 @@ class Console:
         sel = self.tree.selection()
         if sel:
             self._toggle(self.workers.get(sel[0]))
+
+    # ---- 表格交互: 双击标题列=改名, 双击其余=启停, 点📷=开预览窗 ----
+    def _on_double(self, e):
+        row = self.tree.identify_row(e.y)
+        if not row:
+            return
+        if self.tree.identify_column(e.x) == "#1":
+            self._rename(row)
+        else:
+            self._toggle(self.workers.get(row))
+
+    def _on_cell_click(self, e):
+        if (self.tree.identify_region(e.x, e.y) == "cell"
+                and self.tree.identify_column(e.x) == "#4"):
+            row = self.tree.identify_row(e.y)
+            if row:
+                self._open_preview(row)
+
+    def _rename(self, ident: str):
+        w = self.workers.get(ident)
+        if not w:
+            return
+        new = simpledialog.askstring(
+            "改名", "窗口别名(表格显示/通知用):", initialvalue=w.title or "")
+        if new is not None and new.strip():
+            w.title = new.strip()
+            self.aliases[ident] = w.title
+            _save_aliases(self.aliases)
+
+    def _open_preview(self, ident: str):
+        w = self.workers.get(ident)
+        if w:
+            _Preview(self.root, w)
 
     def _start_selected(self):
         sel = self.tree.selection()
@@ -154,7 +206,7 @@ class Console:
             coarse = ("running" if w.alive else
                       "error" if "异常" in w.state else
                       "done" if w.state == "已停止" else "idle")
-            vals = (w.ident, w.backend, w.state, w.last_info)
+            vals = (w.title or w.ident, w.state, w.last_info, "📷")
             if self.tree.exists(ident):
                 self.tree.item(ident, values=vals, tags=(coarse,))
             else:
@@ -232,21 +284,22 @@ class Console:
         dlg.resizable(False, False)
         nb = ttk.Notebook(dlg)
         nb.pack(fill="both", expand=True, padx=8, pady=8)
-        # Tab1: 脚手架层(固定 schema)
-        f1 = ttk.Frame(nb, padding=10)
-        nb.add(f1, text="脚手架")
         entries = {}
-        for row, (key, label) in enumerate([
-                ("display", "图色通道"), ("mouse", "鼠标通道"),
-                ("keypad", "键盘通道"), ("pick_mode", "拾取方式"),
-                ("max_restarts", "异常重开次数"), ("loop_interval", "轮间隔秒"),
-                ("theme", "主题"), ("window_size", "窗体尺寸[x,y]"),
-                ("left_ratio", "左列宽度比例")]):
-            ttk.Label(f1, text=label).grid(row=row, column=0, sticky="w", pady=2)
-            var = tk.StringVar(value=str(getattr(self.gcfg, key)))
-            ttk.Entry(f1, textvariable=var, width=28).grid(
-                row=row, column=1, pady=2)
-            entries[key] = var
+        if not getattr(sys, "frozen", False):
+            # Tab1: 脚手架层(固定 schema)——仅开发期可见, exe 里配置编译期定死
+            f1 = ttk.Frame(nb, padding=10)
+            nb.add(f1, text="脚手架")
+            for row, (key, label) in enumerate([
+                    ("display", "图色通道"), ("mouse", "鼠标通道"),
+                    ("keypad", "键盘通道"), ("pick_mode", "拾取方式"),
+                    ("max_restarts", "异常重开次数"), ("loop_interval", "轮间隔秒"),
+                    ("theme", "主题"), ("window_size", "窗体尺寸[x,y]"),
+                    ("left_ratio", "左列宽度比例")]):
+                ttk.Label(f1, text=label).grid(row=row, column=0, sticky="w", pady=2)
+                var = tk.StringVar(value=str(getattr(self.gcfg, key)))
+                ttk.Entry(f1, textvariable=var, width=28).grid(
+                    row=row, column=1, pady=2)
+                entries[key] = var
         # Tab2: 业务层(读 FIELD_META 自动生成; kind: "entry" | "combo:a|b|c")
         f2 = ttk.Frame(nb, padding=10)
         nb.add(f2, text="业务")
@@ -294,6 +347,50 @@ class Console:
 
     def run(self):
         self.root.mainloop()
+
+
+class _Preview:
+    """独立实时预览窗: 1.5s 一帧纯内存(不落盘), 可同时开多个, 关窗即停。
+    window 端 PrintWindow 后台截(不抢前台), adb 端设备截图。"""
+
+    def __init__(self, root, w: Worker):
+        self.worker = w
+        self.top = tk.Toplevel(root)
+        self.top.title(f"{w.title or w.ident} · 实时预览")
+        self.lbl = tk.Label(self.top, text="加载中…", bg="#1b1f24", fg="#d0d0d0")
+        self.lbl.pack(padx=2, pady=2)
+        self.top.protocol("WM_DELETE_WINDOW", self._close)
+        self._alive = True
+        self._tick()
+
+    def _grab(self):
+        if self.worker.backend == "window":
+            from imgbot.win32.capture import capture_client
+            from imgbot.win32.window import GameWindow
+            return capture_client(GameWindow(int(self.worker.ident)))
+        from imgbot.target import AdbTarget
+        return AdbTarget(self.worker.ident).screenshot()
+
+    def _tick(self):
+        if not self._alive:
+            return
+        try:
+            import cv2
+            from PIL import Image, ImageTk
+            rgb = cv2.cvtColor(self._grab(), cv2.COLOR_BGR2RGB)
+            h, w = rgb.shape[:2]
+            if w > 800:                            # 等比缩, 大屏不至于爆
+                rgb = cv2.resize(rgb, (800, int(h * 800 / w)))
+            self._photo = ImageTk.PhotoImage(Image.fromarray(rgb))
+            self.lbl.configure(image=self._photo, text="")
+        except Exception:
+            self.lbl.configure(image="", text="窗口已失效")
+        if self._alive:
+            self.top.after(1500, self._tick)
+
+    def _close(self):
+        self._alive = False
+        self.top.destroy()
 
 
 def _coerce(cur, text: str):

@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import sys
 import tomllib
 from dataclasses import dataclass, field, fields
 
@@ -58,6 +59,8 @@ def load() -> ScaffoldConfig:
 
 
 def save(cfg: ScaffoldConfig) -> None:
+    if getattr(sys, "frozen", False):
+        return          # 发布形态: 脚手架配置编译期定死, 用户侧不可改
     from .store import _atomic_write
     _atomic_write(PATH, tomli_w.dumps(
         {f.name: getattr(cfg, f.name) for f in fields(cfg)}))
