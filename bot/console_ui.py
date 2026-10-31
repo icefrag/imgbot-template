@@ -290,13 +290,15 @@ class Console:
             # 冷门项(pick_mode/max_restarts/loop_interval)直接改 scaffold.toml
             f1 = ttk.Frame(nb, padding=10)
             nb.add(f1, text="脚手架")
-            chans = ["normal", "gdi", "windows", "dx"]
+            disp_chans = ["normal", "gdi", "windows", "dx"]   # gdi 仅图色
+            mk_chans = ["normal", "windows", "dx"]            # 键鼠无 gdi
             sizes = ["[960, 600]", "[1280, 800]", "[1600, 900]", "[1920, 1080]"]
             themes = ["darkly", "superhero", "cyborg", "solar",
                       "cosmo", "flatly", "litera", "minty"]
             for row, (key, label, choices) in enumerate([
-                    ("display", "图色通道", chans), ("mouse", "鼠标通道", chans),
-                    ("keypad", "键盘通道", chans),
+                    ("display", "图色通道", disp_chans),
+                    ("mouse", "鼠标通道", mk_chans),
+                    ("keypad", "键盘通道", mk_chans),
                     ("theme", "主题", themes), ("window_size", "窗体尺寸", sizes),
                     ("left_ratio", "左列宽度比例", None)]):
                 ttk.Label(f1, text=label).grid(row=row, column=0, sticky="w", pady=2)
