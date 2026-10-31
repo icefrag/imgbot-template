@@ -163,7 +163,8 @@ class Console:
         if not w:
             return
         new = simpledialog.askstring(
-            "改名", "窗口别名(表格显示/通知用):", initialvalue=w.title or "")
+            "改名", "窗口别名(表格显示/通知用):", initialvalue=w.title or "",
+            parent=self.root)
         if new is not None and new.strip():
             w.title = new.strip()
             self.aliases[ident] = w.title
@@ -360,6 +361,7 @@ class Console:
 
         ttk.Button(dlg, text="保存", bootstyle="success",
                    command=apply).pack(pady=(0, 8))
+        _center_over(self.root, dlg)
 
     @property
     def business_cfg_value(self):
@@ -378,6 +380,16 @@ class Console:
         self.root.mainloop()
 
 
+def _center_over(parent, win) -> None:
+    """弹窗永远跟主窗: 居中于 parent 当前位置(主窗挪了再开也跟着)。"""
+    parent.update_idletasks()
+    win.update_idletasks()
+    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
+    x = parent.winfo_x() + (parent.winfo_width() - w) // 2
+    y = parent.winfo_y() + (parent.winfo_height() - h) // 2
+    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+
 class _Preview:
     """独立实时预览窗: 1.5s 一帧纯内存(不落盘), 可同时开多个, 关窗即停。
     window 端 PrintWindow 后台截(不抢前台), adb 端设备截图。"""
@@ -388,6 +400,7 @@ class _Preview:
         self.top.title(f"{w.title or w.ident} · 实时预览")
         self.lbl = tk.Label(self.top, text="加载中…", bg="#1b1f24", fg="#d0d0d0")
         self.lbl.pack(padx=2, pady=2)
+        _center_over(root, self.top)
         self.top.protocol("WM_DELETE_WINDOW", self._close)
         self._alive = True
         self._tick()
