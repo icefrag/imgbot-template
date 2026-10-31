@@ -221,6 +221,8 @@ def on_fuse(ctx) -> bool:
   可同时开多个看多开; window 端后台截不抢前台, adb 端走设备截图); 其余列双击=启停
 - 右侧日志实时流(按级别着色); ⚙ 设置: **开发期双 Tab(脚手架/业务), exe 里只有业务 Tab**
   —— 发布形态脚手架配置(通道/热键/重开策略/主题)编译期定死, `scaffold.toml`
-  不随包、不可改; 业务配置(`business.yaml`)用户侧照常可调
+  不随包、不可改; 业务配置(`business.yaml`)用户侧照常可调。设置弹窗只列常用项
+  (通道/主题/窗体尺寸下拉, 左列比例输入), 冷门项(pick_mode/max_restarts/
+  loop_interval/idle_timeout)直接改 `scaffold.toml`; 业务 bool 字段自动"是/否"下拉
 - 窗体尺寸/左右比例/主题 = scaffold.toml `[ui]`, 用户不可调
 

@@ -286,21 +286,31 @@ class Console:
         nb.pack(fill="both", expand=True, padx=8, pady=8)
         entries = {}
         if not getattr(sys, "frozen", False):
-            # Tab1: 脚手架层(固定 schema)——仅开发期可见, exe 里配置编译期定死
+            # Tab1: 脚手架层——弹窗只留常用项; 通道枚举/经典分辨率全下拉,
+            # 冷门项(pick_mode/max_restarts/loop_interval)直接改 scaffold.toml
             f1 = ttk.Frame(nb, padding=10)
             nb.add(f1, text="脚手架")
-            for row, (key, label) in enumerate([
-                    ("display", "图色通道"), ("mouse", "鼠标通道"),
-                    ("keypad", "键盘通道"), ("pick_mode", "拾取方式"),
-                    ("max_restarts", "异常重开次数"), ("loop_interval", "轮间隔秒"),
-                    ("theme", "主题"), ("window_size", "窗体尺寸[x,y]"),
-                    ("left_ratio", "左列宽度比例")]):
+            chans = ["normal", "gdi", "windows", "dx"]
+            sizes = ["[960, 600]", "[1280, 800]", "[1600, 900]", "[1920, 1080]"]
+            themes = ["darkly", "superhero", "cyborg", "solar",
+                      "cosmo", "flatly", "litera", "minty"]
+            for row, (key, label, choices) in enumerate([
+                    ("display", "图色通道", chans), ("mouse", "鼠标通道", chans),
+                    ("keypad", "键盘通道", chans),
+                    ("theme", "主题", themes), ("window_size", "窗体尺寸", sizes),
+                    ("left_ratio", "左列宽度比例", None)]):
                 ttk.Label(f1, text=label).grid(row=row, column=0, sticky="w", pady=2)
                 var = tk.StringVar(value=str(getattr(self.gcfg, key)))
-                ttk.Entry(f1, textvariable=var, width=28).grid(
-                    row=row, column=1, pady=2)
+                if choices:
+                    ttk.Combobox(f1, textvariable=var, values=choices,
+                                 state="readonly", width=26).grid(
+                        row=row, column=1, pady=2)
+                else:
+                    ttk.Entry(f1, textvariable=var, width=28).grid(
+                        row=row, column=1, pady=2)
                 entries[key] = var
-        # Tab2: 业务层(读 FIELD_META 自动生成; kind: "entry" | "combo:a|b|c")
+        # Tab2: 业务层(读 FIELD_META 自动生成; kind: "entry" | "combo:a|b|c";
+        # bool 字段自动转"是/否"下拉, 不让用户输 true/false)
         f2 = ttk.Frame(nb, padding=10)
         nb.add(f2, text="业务")
         biz_vars = {}
@@ -309,13 +319,22 @@ class Console:
         for row, fname in enumerate(self.business_mod.BusinessConfig.__dataclass_fields__):
             label, kind = meta.get(fname, (fname, "entry"))
             ttk.Label(f2, text=label).grid(row=row, column=0, sticky="w", pady=2)
-            var = tk.StringVar(value=str(getattr(cur_biz, fname)))
+            cur_val = getattr(cur_biz, fname)
             if kind.startswith("combo:"):
                 choices = kind[6:].split("|")
-                ttk.Combobox(f2, textvariable=var, values=choices,
-                             state="readonly", width=26).grid(row=row, column=1, pady=2)
+            elif isinstance(cur_val, bool):
+                choices = ["是", "否"]
             else:
-                ttk.Entry(f2, textvariable=var, width=28).grid(row=row, column=1, pady=2)
+                choices = None
+            var = tk.StringVar(value=("是" if cur_val else "否")
+                               if choices == ["是", "否"] else str(cur_val))
+            if choices:
+                ttk.Combobox(f2, textvariable=var, values=choices,
+                             state="readonly", width=26).grid(
+                    row=row, column=1, pady=2)
+            else:
+                ttk.Entry(f2, textvariable=var, width=28).grid(
+                    row=row, column=1, pady=2)
             biz_vars[fname] = var
 
         def apply():
