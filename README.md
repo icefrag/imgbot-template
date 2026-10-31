@@ -114,6 +114,11 @@ uv run python test/auto_farm/console.py
 
 ## 配套工具(test/)
 
+**靶子适配真相**(选通道前先看): `legend_game` 是 tkinter 窗口 —— gdi 通道
+后台**截屏**完全可用(遮挡/最小化照截, 已实测); 但 **PostMessage 点击它不认**
+(Tk 工具包过滤合成鼠标消息, 前台也不生效)。所以 legend_game 挂机用 `normal`
+组合; 要验 `gdi+windows` 后台点击链路, 靶子得是标准 Win32 窗口(notepad/真游戏)。
+
 | 工具 | 用途 |
 |---|---|
 | `pick_probe.py` | 实时显示 hover/focus 拾到的窗口(句柄/类名/标题), 定 pick_mode 用 |
