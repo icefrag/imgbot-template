@@ -1,233 +1,150 @@
-# imgbot-template · 图色脚本脚手架
+# imgbot-scaffold · 图色脚本脚手架(框架仓)
 
-imgbot 门面之上的项目模板:**拷贝本目录改名 = 新脚本项目**。开发者只写两个文件,其余(中控台/热键收编/Worker 生命周期/双层配置/异常重开/日志留痕)框架全包。
+薄项目模型的框架仓: 脚本开发者基于"骨架 zip + wheel 文件"开发自己的挂机项目,
+**不拷贝本仓**;引擎机密(imgbot+潜影)闭源编译,脚手架层开源推广。
+术语见 [GLOSSARY.md](GLOSSARY.md),发行模型决策见
+[ADR-0001](docs/adr/0001-库化分发-引擎闭源脚手架开源文件分发.md),
+给脚本开发者的文档见 [docs/脚手架使用手册.md](docs/脚手架使用手册.md)。
 
-## 快速开始
+## 实施进度(读前必看)
 
-```bash
-uv sync                          # 依赖(含 imgbot path 引用)
-uv run python test/legend_game.py   # 开测试游戏(另开终端)
-uv run python test/auto_farm/main.py   # 挂机辅助(自动打怪示范, 跑 10s 后 Ctrl+C)
-```
+本 README 与用户手册描述**目标形态**,以下步骤落地前,标注"过渡期"的章节仍按旧方式:
 
----
-
-# 开发手册
-
-## 目录
-
-```
-├── main.py            # 单开入口(裸跑, Ctrl+C 停)
-├── console.py         # 多开中控台(ttkbootstrap, 热键收编)
-├── scaffold.toml      # 脚手架层配置(框架的: 通道/热键/UI/重开策略)
-├── business.py        # ★ 业务配置 dataclass + FIELD_META(弹窗自动生成)
-├── task.py            # ★ main_task(ctx) 总入口 + 子任务(打字示例)
-├── bot/               # 框架包(拷走不改)
-│   ├── worker.py      #   生命周期: 绑定→ctx→任务→异常重开→收口
-│   ├── backends.py    #   adb / window 两端(发现/绑定/ctx 组装)
-│   ├── hotkeys.py     #   F9 热键收编(hover/focus 拾取)
-│   ├── dsl.py         #   顶层命令表(click/key/wait_pic/..., task.py import * 直用)
-│   ├── settings.py    #   scaffold.toml 读写
-│   ├── store.py       #   business.yaml 读写
-│   └── console_ui.py  #   中控台 UI
-├── test/              # 测试辅助
-│   ├── legend_game.py #   类传奇小游戏(挂机靶场, 图色色值见文件头)
-│   ├── game_smoke.py  #   游戏冒烟(识别/点击/击杀/掉落)
-│   ├── farm_e2e.py    #   挂机 E2E(金币增长验证)
-│   ├── adb_smoke.py   #   adb 端冒烟(模拟器/真机: 绑定→图色 DSL→tap→key)
-│   ├── nav_smoke.py   #   Nav 导航接入冒烟(离线: 声明表建图→go/at→迷路自愈)
-│   ├── auto_farm/     #   挂机辅助项目(基于脚手架二开的示范)
-│   ├── pick_probe.py  #   窗口拾取探测(hover/focus)
-│   └── tpl_crop.py    #   模板裁剪(截窗→框选→存 templates)
-├── templates/         # 图色素材 PNG
-└── logs/              # 运行产物(shots 留痕, gitignore)
-```
-
-## AI 拷贝规程(基于本脚手架新建项目)
-
-给 AI 会话的硬规程,按序执行,每步带验收。目录名可中文;`pyproject.toml` 的 `name` 用英文。
-
-1. **整目录拷贝改名**: 复制本目录 → 新位置(如 `D:\script-workspace\龙谷助手`)。
-   排除 `.git/`、`.scratch/`、`logs/`、`__pycache__/`、`.venv/`;`uv.lock` 一并拷走。
-   验收: 新目录含 `bot/` `main.py` `console.py` `business.py` `task.py` `scaffold.toml` `pyproject.toml` `uv.lock` `templates/`。
-2. **imgbot path 引用**: `pyproject.toml` 的 `[tool.uv.sources] imgbot = { path = "../imgbot", editable = true }`。
-   新项目与 imgbot 仓同级则不改;不同级改成实际路径。改完 `uv sync`(lock 随之更新)。
-   **必须 editable**: 否则 venv 里是安装快照, imgbot 仓改了代码这边静默跑旧版。
-   验收: `uv sync` 无错,`uv run python -c "import imgbot"` 通过。
-3. **改名**: `pyproject.toml` 的 `name`/`description` 换成新项目。
-4. **写业务,只动两个 ★ 文件**: 覆写根 `task.py`(`main_task(ctx)` + 子任务函数,一律吃 ctx;
-   出厂打字示例整段替换)与 `business.py`(dataclass + FIELD_META,中控台弹窗自动生成)。
-   **禁止**: 改 `bot/`;写 `IMGBOT_TEMPLATE_ROOT`/sys.path 引导——那是仓内 `test/auto_farm`
-   寄生上层 `bot/` 的做法,拷出的项目自带 `bot/`,不需要。
-5. **清理模板自留件**: `test/` 只保留 `tpl_crop.py`(模板裁剪)与 `pick_probe.py`(窗口探测),
-   其余(`legend_game.py` 靶场、`game_smoke.py`、`farm_e2e.py`、`auto_farm/` 示范)删除;
-   根 `selfcheck.py` 是出厂打字示例的自检,task.py 覆写后即失效,一并删除。
-6. **素材**: 模板 PNG 进 `templates/`(`uv run python test/tpl_crop.py` 截目标窗口裁剪)。
-7. **验证 + 首提交**: `uv run console.py` → 开目标窗口 → 悬停按 F9 收编 → 跑通一轮
-   → `git init` 首提交。
-
-## 发布
-
-```bash
-uv run build_exe.py        # 名字/版本取自 pyproject.toml
-```
-
-产物 `dist/<名>-v<版本>.zip`(绿色包, 目标机零 python):exe + `_internal/`(依赖
-全冻)+ `bin/`(潜影注入件)+ `templates/` + `scaffold.toml`——后两者摆 exe 旁,
-用户可编辑;`business.yaml`/`logs/` 首次运行自动生成。**bin/ 注入件会被
-Defender 报毒, 发布机与目标机都需加排除目录**(交接运维常识)。
-
----
-
-# 测试手册 · 挂机辅助项目(auto_farm)
-
-操作传奇小游戏(imgbot-legend)的挂机项目,位于 **`test/auto_farm/`** —— 基于
-脚手架二开的完整示范,开发者写的东西只有 `business.py`(挂机参数)和
-`task.py`(自动打怪循环)两个文件。
-
-## 怎么跑
-
-```bash
-# 终端 1: 开游戏
-uv run python test/legend_game.py
-
-# 终端 2: 开挂机(单开模式, 3 秒后自动开始打怪)
-uv run python test/auto_farm/main.py
-
-# 或多开中控台(F9 收编游戏窗口, 表格启停)
-uv run python test/auto_farm/console.py
-```
-
-## 它自动做什么
-
-找怪(红色圆 #CC3333)→ 点击选中(角色自动攻击)→ 等击杀 →
-捡金币(#FFD700)→ 循环。日志/表格实时显示"锁定怪 → 击杀 ×N → 捡金币"
-完整序列; 连续失败自动重开, 超限熔断(可配)。
-
-## 挂机参数(business.py)
-
-| 参数 | 默认 | 说明 |
+| 步骤 | 内容 | 状态 |
 |---|---|---|
-| attack_wait | 10.0 秒 | 点击怪物后等它死的超时 |
-| coin_timeout | 6.0 秒 | 等金币掉落的超时 |
-| max_kills | 0 | 最大击杀数(0 = 无限挂机) |
+| ① | 本仓翻转+改名 `bot/`→`imgbot_scaffold/`,全量引用/文档跟进 | 待做 |
+| ② | 引擎编译管线: imgbot 出 .pyd wheel(闭源)+ .pyi 桩 | 待做 |
+| ③ | 骨架打包脚本 `scripts/make_skeleton.py` + 发版自测规程 | 待做 |
+| ④ | auto_farm 迁移转正为第一个薄项目 | 待做 |
 
-## 配套工具(test/)
+## 分层与通道(整套用法速览)
 
-**靶子适配真相**(选通道前先看): `legend_game` 是 tkinter 窗口 —— gdi 通道
-后台**截屏**完全可用(遮挡/最小化照截, 已实测); 但 **PostMessage 点击它不认**
-(Tk 工具包过滤合成鼠标消息, 前台也不生效)。所以 legend_game 挂机用 `normal`
-组合; 要验 `gdi+windows` 后台点击链路, 靶子得是标准 Win32 窗口(notepad/真游戏)。
+| 层 | 内容 | 形态 | 给谁 |
+|---|---|---|---|
+| 引擎层 | imgbot 库 + 潜影注入件 | 闭源编译 wheel(`imgbot-*.whl`) | 随骨架 zip 分发 |
+| 脚手架层 | 本仓 `imgbot_scaffold/`(worker/中控台/DSL/设置) | 开源纯源码 wheel(`imgbot_scaffold-*.whl`) | 同上,源码上 GitHub 做门面 |
+| 薄项目 | 入口四件套 + task/business + 素材 | 骨架 zip 解压即开发 | 脚本开发者 |
 
-| 工具 | 用途 |
-|---|---|
-| `pick_probe.py` | 实时显示 hover/focus 拾到的窗口(句柄/类名/标题), 定 pick_mode 用 |
-| `tpl_crop.py` | 模板裁剪: 截当前鼠标下窗口 → 框选 → 存 templates/*.png |
-| `game_smoke.py` | 游戏冒烟: 识别/点击/击杀/掉落自动验收 |
-| `farm_e2e.py` | 挂机 E2E: 40 秒金币增长自动验收 |
-| `adb_smoke.py` | adb 端冒烟: 发现设备→绑定→图色 DSL→tap→key 全链(需模拟器/真机) |
-| `nav_smoke.py` | Nav 接入冒烟(离线): 声明表建图→go BFS 带路→迷路重定位→LostError |
+三类人三种吃法,同一个薄项目形态:
 
-### 二开流程(新脚本)
+- **我(作者 dogfood)**: 直链——薄项目 pyproject 加 `[tool.uv.sources]` 指回本仓与 imgbot 仓
+  (editable),改完即生效,无版本概念;
+- **脚本开发者(国内)**: 骨架 zip 里的 `libs/*.whl` 本地文件安装,三方依赖走清华镜像,
+  **全程不碰 GitHub**;文件名即版本,不领新版不被动升级;
+- **脚本使用者**: 脚本开发者 `build_exe` 打出的绿色 zip,零 Python。
 
-1. 拷贝本目录改名(如 `龙谷助手`)→ `uv sync`
-2. `business.py` 写业务配置字段(或让 AI 写)
-3. `task.py` 写 `main_task(ctx)` + 子任务(或让 AI 写)
-4. `test/tpl_crop.py` / pixpick 制作素材进 `templates/`
-5. `uv run main.py`(单开)或 `uv run console.py`(多开)
+## 我的日常(直链开发)
 
-### DSL 顶层命令(task.py 免前缀)
-
-task.py 顶部 `from bot.dsl import *` 后, 挂机动词直接写: `click(231, 347)`、
-`key("ctrl+s")`、`sleep(500)`。速查表在 `bot/dsl.py` 模块头(权威版), 要点:
-
-- **凡时间皆毫秒**: `sleep(500)` = 半秒, `wait_pic(..., timeout=10000)` = 10 秒(默认)
-- **找不到/超时返回 None 或 False, 不抛异常**: "没找到"是挂机常态; 真故障由框架重开兜底
-- **F9 停止贯穿**所有 sleep 与等待, 按下即醒即退
-- 招牌复合动作: `find_tap(找到就点)` / `tap_until_gone(连点到消失)`
-- 冷门动作(`wait_until/retry/swipe_find/read_number/...`)与窗口管理走
-  `ctx.ops / ctx.dm / ctx.device` 逃生舱, 能力一分不少
-
-```python
-from bot.dsl import *          # 唯一的前缀
-
-def main_task(ctx):
-    hit = find_color("CC3333", tol=40)          # [(x, y), ...] 或 []
-    if hit:
-        click(*hit[0])
-        if wait_color_gone("CC3333-282828", timeout=10000):
-            log("击杀")
+```bash
+# 本仓改框架 → 到任一薄项目(如 auto_farm)冒烟, 保存即生效:
+cd D:\script-workspace\auto_farm && uv run console.py
 ```
 
-### ctx 一览(任务代码的全部世界)
+薄项目 pyproject 长这样(路径按实际层级):
+
+```toml
+[project]
+name = "auto-farm"
+dependencies = ["imgbot-scaffold", "imgbot[ocr]"]
+
+[tool.uv.sources]
+imgbot-scaffold = { path = "../imgbot-template", editable = true }
+imgbot = { path = "../imgbot", editable = true }
+```
+
+`tool.uv.sources` 是**消费方项目里**的覆盖项,只影响我的工作区;用户拿到的是 wheel 文件,
+两条通道互不相扰。imgbot 必须 editable,否则 venv 里是快照,源仓改动这边静默跑旧版(踩过)。
+
+## 发版流(每次对外发骨架 zip)
+
+```bash
+# 1. 版本号: 本仓 pyproject version + CHANGELOG(语义: 破坏性=大版本, DSL 加命令=小版本, 修 bug=补丁)
+# 2. 脚手架 wheel(纯源码, 不编译):
+uv build                                    # → dist/imgbot_scaffold-0.3.0-py3-none-any.whl
+# 3. 引擎 wheel(闭源编译): 到 imgbot 仓按其 README 出 imgbot-0.x.x-cp312-win_amd64.whl
+# 4. 打骨架:
+uv run scripts/make_skeleton.py             # → dist/skeleton-v0.3.0.zip
+#    = 四件套 + scaffold.toml + tools/(pick_probe) + libs/ 两 whl + 使用手册 + DSL语法清单
+# 5. 自测(铁律): 干净目录解压 → uv sync → 跑通一轮冒烟, 按的就是用户姿势
+# 6. 发群文件, 群公告记版本号与更新说明
+```
+
+## 版本策略
+
+- wheel 文件名即版本,uv 锁哈希防偷换;用户升级 = 换 `libs/` 文件 + 改 pyproject 那一行 + `uv sync`;
+- 用户各持各版互不牵连,"一损俱损"只存在于我的直链工作区;
+- 将来若走收费授权: 在引擎层上锁,不惊动任何存量薄项目。
+
+## 仓结构(目标态, ①完成后)
+
+```
+├── imgbot_scaffold/      # 框架包(开源)
+│   ├── worker.py         #   生命周期: 绑定→ctx→任务→异常重开→收口
+│   ├── backends.py       #   adb / window 两端(发现/绑定/ctx 组装)
+│   ├── hotkeys.py        #   F9 热键收编(hover/focus 拾取)
+│   ├── dsl.py            #   顶层命令表(task.py import * 直用)
+│   ├── settings.py       #   scaffold.toml 读写
+│   ├── store.py          #   business.yaml 读写
+│   └── console_ui.py     #   中控台 UI
+├── scripts/              # build_docs.py(DSL 清单生成) + make_skeleton.py
+├── skel/                 # 薄项目四件套母版(骨架 zip 的料)
+├── docs/                 # DSL语法清单 + 脚手架使用手册 + adr/
+├── test/                 # 靶场与冒烟(legend_game/game_smoke/farm_e2e...)
+└── GLOSSARY.md
+```
+
+DSL 文档纪律: 任何 `imgbot_scaffold/dsl.py` 变更必须重跑 `uv run scripts/build_docs.py`
+并提交三产物(md/html/chm),详见 [AGENTS.md](AGENTS.md)。
+
+## 框架开发手册
+
+### DSL 要点(task.py 免前缀)
+
+`from imgbot_scaffold.dsl import *` 后直接写: `click(x, y)` / `key("ctrl+s")` /
+`sleep(500)`。速查表在 `dsl.py` 模块头,权威版 [docs/DSL语法清单.md](docs/DSL语法清单.md)。
+
+- **凡时间皆毫秒**; **找不到/超时返回 None/False 不抛**——"没找到"是挂机常态,真故障由重开兜底
+- **F9 停止贯穿**所有 sleep 与等待; 招牌复合: `find_tap` / `tap_until_gone`
+- 多点找色: `Pt(x, y, (B,G,R), tol)` 组点阵,全中才算(同色文字天然不全中)
+- 逃生舱: `ctx.ops / ctx.dm / ctx.device` 能力一分不少
+
+### ctx 一览
 
 | 字段 | window 端 | adb 端 |
 |---|---|---|
-| `ctx.ops` | ✅ Ops 门面(find_tap/wait_pic/find_color/...) | — |
-| `ctx.dm` | ✅ DmSoft(MoveTo/KeyPress/FindWindow/...) | — |
-| `ctx.device` | — | ✅ AdbTarget(actions.* 魔神方言) |
-| `ctx.cfg` | ✅ 业务配置对象 | ✅ |
-| `ctx.log` / `ctx.stop` / `ctx.shot(tag)` | ✅ | ✅ |
+| `ctx.ops` | Ops 门面(find_tap/wait_pic/find_color/...) | — |
+| `ctx.dm` | DmSoft(MoveTo/KeyPress/FindWindow/...) | — |
+| `ctx.device` | — | AdbTarget(actions.* 魔神方言) |
+| `ctx.cfg` / `ctx.log` / `ctx.stop` / `ctx.shot(tag)` | ✅ | ✅ |
 
-### 界面导航(Nav, 可选): 网状界面的声明式带路
+### 长跑双保险与恢复线
 
-游戏界面多级菜单/弹窗多、挂机要长跑(崩溃恢复/断线重连)时, 在 task.py 顶部
-声明三张表, 框架自动建图(worker 发现表才建, 无表零影响):
-
-```python
-NAV_SCREENS = {"city": "nav/city_hud.png",                   # 锚点图(一屏一张)
-               "dungeon": ("nav/dg_title.png", (0, 0, 300, 80))}   # 位置固定就限矩形
-NAV_EDGES = {("city", "dungeon"): "nav/dg_btn.png",          # 模板名=找到就点
-             ("dungeon", "city"): _back_to_city}             # 或函数(组 ops 原语)
-NAV_INTERRUPTS = ["nav/reward_ok.png"]                       # 任意屏会冒的弹窗
-
-def main_task(ctx):
-    if not go("dungeon"):          # 图自动带路: BFS+落点验证+迷路重定位自愈
-        return
-    ...界面内操作(战斗/领奖, 普通命令)...
-```
-
-- `go("屏名")` 到达 True / 超时安静 False; `at("屏名")` 便宜的单帧期望验证
-- **迷路且重定位失败抛 `LostError`** → 任务异常重开 → 再迷路 → 熔断 →
-  `on_fuse` 重登 —— 和熔断钩子天然咬合成完整恢复线
-- 锚点资产 `templates/nav/屏名.png`(tpl_crop 裁好归档); 界面内操作不进图,
-  做完需要"换界面验证"的动作才是边
-- 单主循环线性脚本用不上(表驱动 wait_pic 已够), 别为上图上图
-
-### 失败分类与无进展看门狗(长跑双保险)
-
-- **致命失败不重开**: `task.py` 里 `from bot.worker import FatalError` 并
-  `raise FatalError("账号被封")` —— 重开也救不了的场景(封号/版本过期/素材全失效)
-  直接停手, 不白烧重开次数; 普通异常照旧自动重开+熔断。
-- **无进展看门狗**: `scaffold.toml` 的 `idle_timeout`(秒, 0=关, 建议 300)。
-  find/wait **命中**、点击、`progress()` 都算进展; 连续超时(画面被弹窗卡死/
-  渲染停住但没抛异常的"安静卡死")自动停任务并截图留痕 —— 防整夜空转。
-  长轮询循环里可用 `progress("等刷新")` 手动打点防误杀。
-
-### 熔断恢复钩子(on_fuse)
-
-连续异常超过 `max_restarts` 次熔断前, worker 给业务一次自愈机会——`task.py` 里定义:
-
-```python
-def on_fuse(ctx) -> bool:
-    """重启游戏→重新登录→进挂机地图; 全部就绪返回 True。"""
-    ...重启登录流程...
-    return True
-```
-
-返回 True = 已恢复(重开计数清零继续挂);不定义/返回 False/自身抛异常 = 维持熔断
-躺平(现状行为, 零侵入)。这是"挂过夜"和"挂两小时就断"的分界线。
+- **FatalError**: `raise FatalError("封号")` 致命失败不重开;普通异常照旧自动重开+熔断
+- **idle_timeout 看门狗**: find/wait 命中与点击算进展,安静卡死自动停+截图留痕
+- **on_fuse(ctx) -> bool**: 熔断前自愈机会(重启/重登),返回 True 清零计数,是"挂过夜"的分界线
+- **Nav 声明式导航**: `NAV_SCREENS/NAV_EDGES/NAV_INTERRUPTS` 三表建图,`go()/at()` BFS 带路,
+  迷路自愈失败抛 LostError 接入重开线;单主循环线性脚本用不上,别为上图上图
 
 ### 中控台
 
-- **F9 热键收编**: 鼠标悬停目标窗口按 F9 → 加入表格并启动; 再按停止。拾取方式(hover/focus)在 scaffold.toml
-- 表格四列: **窗口标题**(双击改名, 别名持久化到 `aliases.json`, 重启/重收编都认得) /
-  状态 / 最近信息 / **📷 预览**(点开独立实时预览窗, 1.5s 一帧纯内存不落盘,
-  可同时开多个看多开; window 端后台截不抢前台, adb 端走设备截图); 其余列双击=启停
-- 右侧日志实时流(按级别着色); ⚙ 设置: **开发期双 Tab(脚手架/业务), exe 里只有业务 Tab**
-  —— 发布形态脚手架配置(通道/热键/重开策略/主题)编译期定死, `scaffold.toml`
-  不随包、不可改; 业务配置(`business.yaml`)用户侧照常可调。设置弹窗只列常用项
-  (通道/主题/窗体尺寸下拉, 左列比例输入), 冷门项(pick_mode/max_restarts/
-  loop_interval/idle_timeout)直接改 `scaffold.toml`; 业务 bool 字段自动"是/否"下拉
-- 窗体尺寸/左右比例/主题 = scaffold.toml `[ui]`, 用户不可调
+F9 收编(hover/focus 拾取)/表格启停/双击改名(别名持久化)/📷 实时预览(纯内存多开)/
+右侧日志流;⚙ 设置双 Tab: 开发期脚手架+业务,exe 里只有业务;`aliases.json` 记别名。
 
+## 过渡期: 旧·拷贝规程(步骤①③完成前,新项目仍走这条)
+
+1. 整目录拷贝本仓改名(排除 `.git/ .scratch/ logs/ __pycache__/ .venv/`),`uv sync`;
+2. pyproject 的 imgbot path 指到实际层级,**必须 editable**;
+3. 改 name/description; 写根 `task.py` + `business.py`(禁改 `bot/`,禁 sys.path 寄生);
+4. `test/` 只留 `tpl_crop.py`/`pick_probe.py`, 删 `selfcheck.py` 与示范;
+5. 素材进 `templates/`(任意截图工具裁);
+6. `uv run console.py` 跑通 → `git init` 首提交。
+
+## 发布 exe(薄项目 → 脚本使用者)
+
+骨架自带薄 `build_exe.py`,名字/版本取自薄项目 pyproject:
+
+```bash
+uv run build_exe.py     # → dist/<名>-v<版本>.zip(exe + _internal/ + bin/ + templates/ + scaffold.toml)
+```
+
+bin/ 注入件会被 Defender 报毒,发布机与目标机都需加排除目录(交接常识)。
