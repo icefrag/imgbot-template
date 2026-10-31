@@ -74,17 +74,12 @@ class Console:
         self.status_lbl = ttk.Label(top, text="0 运行")
         self.status_lbl.pack(side="right")
 
-        w, h = self.gcfg.window_size
-        left = ttk.Frame(self.root, padding=(6, 0))
-        left.place(x=6, y=52, width=int((w - 24) * self.gcfg.left_ratio),
-                   height=h - 110)
-        right = ttk.Frame(self.root, padding=(6, 0))
-        right.place(x=int((w - 24) * self.gcfg.left_ratio) + 12, y=52,
-                    width=int((w - 24) * (1 - self.gcfg.left_ratio)),
-                    height=h - 110)
+        self.left_f = ttk.Frame(self.root, padding=(6, 0))
+        self.right_f = ttk.Frame(self.root, padding=(6, 0))
+        self._relayout()
 
         cols = ("name", "state", "info", "preview")
-        self.tree = ttk.Treeview(left, columns=cols, show="headings", height=12)
+        self.tree = ttk.Treeview(self.left_f, columns=cols, show="headings", height=12)
         for cid, text, wd in (("name", "窗口标题", 150), ("state", "状态", 80),
                               ("info", "最近信息", 205), ("preview", "预览", 46)):
             self.tree.heading(cid, text=text)
@@ -95,7 +90,7 @@ class Console:
         self.tree.bind("<Double-1>", self._on_double)
         self.tree.bind("<Button-1>", self._on_cell_click)
 
-        btns = ttk.Frame(left)
+        btns = ttk.Frame(self.left_f)
         btns.pack(fill="x", pady=4)
         ttk.Button(btns, text="启动", width=8, bootstyle="success",
                    command=self._start_selected).pack(side="left", padx=2)
@@ -104,11 +99,19 @@ class Console:
         ttk.Button(btns, text="移除", width=8, bootstyle="secondary-outline",
                    command=self._remove_selected).pack(side="left", padx=2)
 
-        self.logbox = tk.Text(right, bg="#1b1f24", fg="#d0d0d0", state="disabled",
+        self.logbox = tk.Text(self.right_f, bg="#1b1f24", fg="#d0d0d0", state="disabled",
                               wrap="word", font=("Consolas", 9))
         self.logbox.pack(fill="both", expand=True)
         for level, color in _LOG_COLORS.items():
             self.logbox.tag_config(level, foreground=color)
+
+    def _relayout(self):
+        """按当前 gcfg 摆窗体尺寸与左右分栏(建窗与设置保存后共用)。"""
+        w, h = self.gcfg.window_size
+        self.root.geometry(f"{w}x{h}")
+        lw = int((w - 24) * self.gcfg.left_ratio)
+        self.left_f.place(x=6, y=52, width=lw, height=h - 110)
+        self.right_f.place(x=lw + 12, y=52, width=w - 24 - lw, height=h - 110)
 
     # ================= Worker 管理(热键/按钮共用) =================
     def on_hotkey(self):
@@ -343,6 +346,11 @@ class Console:
             for k, var in entries.items():
                 setattr(self.gcfg, k, _coerce(getattr(self.gcfg, k), var.get()))
             settings.save(self.gcfg)
+            try:                          # 热应用: 主题/尺寸/比例立即生效
+                self.root.style.theme_use(self.gcfg.theme)
+                self._relayout()
+            except Exception:
+                pass
             for k, var in biz_vars.items():
                 cur = getattr(self.business_cfg_value, k)
                 setattr(self.business_cfg_value, k, _coerce(cur, var.get()))
