@@ -1,9 +1,9 @@
 <html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
 <h1><code>find_tap</code></h1>
-<p>找到就拟人点。timeout=0 单帧试; 超时返 False。</p>
+<p>找到就拟人点(贝塞尔轨迹+停顿)。timeout=0 单帧试; verify=点后必须</p>
 <h2>原型</h2>
-<pre>find_tap(pic, region=None, timeout=0, threshold=None)</pre>
-
+<pre>find_tap(pic, region=None, timeout=0, threshold=None, verify=None)</pre>
+出现的图(没等到=失败, 防"点了没跳转"); 超时返 False。
 <h2>示例</h2>
 <pre>find_tap("领取按钮.png")                        # 单帧试
 find_tap("每日签到.png", timeout=5000)              # 等最多 5 秒</pre>

@@ -1,6 +1,6 @@
-# imgbot-template DSL 语法清单
+# icefrag DSL 语法清单
 
-> 参数表由 `scripts/build_docs.py` 从 bot/dsl.py 签名内省生成,
+> 参数表由 `scripts/build_docs.py` 从 icefrag/dsl.py 签名内省生成,
 > 改 dsl 后重跑脚本(AGENTS.md 规则)。铁律: 凡时间皆毫秒 / 超时返
 > None 不抛 / F9 贯穿 / ctx.dm·ctx.ops·ctx.device 是逃生舱。
 
@@ -8,8 +8,9 @@
 
 | 命令 | 原型 | 说明 |
 |---|---|---|
-| **click** | `click(x, y)` | 点击 (x, y)。window: 移动+左键; adb: tap。 |
-| **dblclick** | `dblclick(x, y)` | 双击 (x, y)。 |
+| **click** | `click(x, y, jitter=None, human=None, settle=None)` | 点击 (x, y)。默认拟人: 贝塞尔轨迹到位→随机停顿→落点抖动(默认见 |
+| **dblclick** | `dblclick(x, y, jitter=None, human=None, settle=None)` | 双击 (x, y), 参数同 click; adb 端两击带 80~120ms 间隔。 |
+| **drag** | `drag(x1, y1, x2, y2, ms=350)` | 按住拖拽(列表滚动/滑块): window=按住左键插值拖, adb=原生 swipe。 |
 | **move** | `move(x, y)` | 悬停(不点)。adb 端无悬停概念, 报错指路。 |
 | **key** | `key(s)` | 按键/组合键: key("enter") / key("ctrl+s")(修饰键 ctrl/alt/shift/win)。 |
 | **sleep** | `sleep(ms)` | 可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。 |
@@ -18,8 +19,9 @@
 
 | 命令 | 原型 | 说明 |
 |---|---|---|
-| **log** | `log(text, level='info')` |  |
-| **shot** | `shot(tag='')` |  |
+| **log** | `log(text, level='info')` | 打一条日志(中控台日志面板/终端), level: info|warn|error。 |
+| **shot** | `shot(tag='')` | 截当前绑定目标一帧存 logs/shots/(月日_时分秒_目标_标签.png)留痕, 返回路径或 None。 |
+| **stopped** | `stopped()` | F9 停止键按下过吗 —— 挂机循环的退出条件: while not stopped(): ... |
 
 ## 找点(单帧)
 
@@ -34,7 +36,7 @@
 
 | 命令 | 原型 | 说明 |
 |---|---|---|
-| **find_tap** | `find_tap(pic, region=None, timeout=0, threshold=None)` | 找到就拟人点。timeout=0 单帧试; 超时返 False。 |
+| **find_tap** | `find_tap(pic, region=None, timeout=0, threshold=None, verify=None)` | 找到就拟人点(贝塞尔轨迹+停顿)。timeout=0 单帧试; verify=点后必须 |
 | **tap_until_gone** | `tap_until_gone(pic, region=None, timeout=10000, threshold=None)` | 连点直到图消失(确定/领取类), 返回点击次数; 不出现返回 0。 |
 
 ## 等待(超时返 None/False)
@@ -73,12 +75,20 @@
 
 **click**
 ```python
-click(231, 347)                       # 选中怪(角色自动攻击)
+click(231, 347)                       # 拟人点击(轨迹+停顿+抖动), 默认见 scaffold.toml
+click(231, 347, human=False)            # 瞬移急点(速度优先)
+click(231, 347, jitter=0, settle=200)  # 精确落点, 到位停 200ms
 ```
 
 **dblclick**
 ```python
 dblclick(400, 300)
+```
+
+**drag**
+```python
+drag(450, 550, 450, 150)               # 列表上滑(按住拖)
+drag(100, 300, 500, 300, ms=500)       # 横拖, 500ms
 ```
 
 **move**
@@ -107,6 +117,12 @@ log(f"击杀 ×{kills}", "info")           # level: info|warn|error
 shot("boss出现")                       # 留痕到 logs/shots
 ```
 
+**stopped**
+```python
+while not stopped():               # F9 叫停了吗(挂机循环退出条件)
+    打怪一轮()
+```
+
 **find_color**
 ```python
 hit = find_color("CC3333", tol=40, region=(0, 0, 900, 570))
@@ -120,7 +136,7 @@ for x, y in find_all("小地图图标.png"): click(x, y)
 
 **find_multi_color**
 ```python
-from bot.dsl import Pt
+from icefrag.dsl import Pt
 MON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]
 hit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None
 ```

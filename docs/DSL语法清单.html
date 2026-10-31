@@ -1,5 +1,5 @@
 <html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
-<h1>imgbot-template DSL 语法清单</h1>
+<h1>icefrag DSL 语法清单</h1>
 <h2>四条铁律</h2>
 <ol>
 <li><b>凡时间皆毫秒</b> — sleep(500)=半秒, timeout=10000=10 秒(各等待命令默认)。</li>
@@ -10,7 +10,7 @@
     probe/check_points...)与窗口管理走 ctx.ops / ctx.dm / ctx.device。</li>
 </ol>
 <h2>task.py 骨架</h2>
-<pre>from bot.dsl import *          # 唯一的前缀
+<pre>from icefrag.dsl import *          # 唯一的前缀
 
 def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动重开)
     while not ctx.stop.is_set():
@@ -24,16 +24,18 @@ def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动�
 <p>完整示范: test/auto_farm/task.py(多点找色版自动打怪)。</p>
 <h2>键鼠</h2>
 <table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
-<tr><td><code>click</code></td><td><code>click(x, y)</code></td><td>点击 (x, y)。window: 移动+左键; adb: tap。</td></tr>
-<tr><td><code>dblclick</code></td><td><code>dblclick(x, y)</code></td><td>双击 (x, y)。</td></tr>
+<tr><td><code>click</code></td><td><code>click(x, y, jitter=None, human=None, settle=None)</code></td><td>点击 (x, y)。默认拟人: 贝塞尔轨迹到位→随机停顿→落点抖动(默认见</td></tr>
+<tr><td><code>dblclick</code></td><td><code>dblclick(x, y, jitter=None, human=None, settle=None)</code></td><td>双击 (x, y), 参数同 click; adb 端两击带 80~120ms 间隔。</td></tr>
+<tr><td><code>drag</code></td><td><code>drag(x1, y1, x2, y2, ms=350)</code></td><td>按住拖拽(列表滚动/滑块): window=按住左键插值拖, adb=原生 swipe。</td></tr>
 <tr><td><code>move</code></td><td><code>move(x, y)</code></td><td>悬停(不点)。adb 端无悬停概念, 报错指路。</td></tr>
 <tr><td><code>key</code></td><td><code>key(s)</code></td><td>按键/组合键: key("enter") / key("ctrl+s")(修饰键 ctrl/alt/shift/win)。</td></tr>
 <tr><td><code>sleep</code></td><td><code>sleep(ms)</code></td><td>可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。</td></tr>
 </table>
 <h2>消息</h2>
 <table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
-<tr><td><code>log</code></td><td><code>log(text, level='info')</code></td><td></td></tr>
-<tr><td><code>shot</code></td><td><code>shot(tag='')</code></td><td></td></tr>
+<tr><td><code>log</code></td><td><code>log(text, level='info')</code></td><td>打一条日志(中控台日志面板/终端), level: info|warn|error。</td></tr>
+<tr><td><code>shot</code></td><td><code>shot(tag='')</code></td><td>截当前绑定目标一帧存 logs/shots/(月日_时分秒_目标_标签.png)留痕, 返回路径或 None。</td></tr>
+<tr><td><code>stopped</code></td><td><code>stopped()</code></td><td>F9 停止键按下过吗 —— 挂机循环的退出条件: while not stopped(): ...</td></tr>
 </table>
 <h2>找点(单帧)</h2>
 <table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
@@ -44,7 +46,7 @@ def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动�
 </table>
 <h2>复合动作</h2>
 <table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
-<tr><td><code>find_tap</code></td><td><code>find_tap(pic, region=None, timeout=0, threshold=None)</code></td><td>找到就拟人点。timeout=0 单帧试; 超时返 False。</td></tr>
+<tr><td><code>find_tap</code></td><td><code>find_tap(pic, region=None, timeout=0, threshold=None, verify=None)</code></td><td>找到就拟人点(贝塞尔轨迹+停顿)。timeout=0 单帧试; verify=点后必须</td></tr>
 <tr><td><code>tap_until_gone</code></td><td><code>tap_until_gone(pic, region=None, timeout=10000, threshold=None)</code></td><td>连点直到图消失(确定/领取类), 返回点击次数; 不出现返回 0。</td></tr>
 </table>
 <h2>等待(超时返 None/False)</h2>

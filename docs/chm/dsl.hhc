@@ -14,16 +14,20 @@
 		<param name="Local" value="c0/p0-1.html">
 		</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="move">
+		<param name="Name" value="drag">
 		<param name="Local" value="c0/p0-2.html">
 		</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="key">
+		<param name="Name" value="move">
 		<param name="Local" value="c0/p0-3.html">
 		</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="sleep">
+		<param name="Name" value="key">
 		<param name="Local" value="c0/p0-4.html">
+		</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="sleep">
+		<param name="Local" value="c0/p0-5.html">
 		</OBJECT>
 	</UL>
 	<LI> <OBJECT type="text/sitemap">
@@ -37,6 +41,10 @@
 		<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="shot">
 		<param name="Local" value="c1/p1-1.html">
+		</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="stopped">
+		<param name="Local" value="c1/p1-2.html">
 		</OBJECT>
 	</UL>
 	<LI> <OBJECT type="text/sitemap">

@@ -1,9 +1,11 @@
 <html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
 <h1><code>click</code></h1>
-<p>点击 (x, y)。window: 移动+左键; adb: tap。</p>
+<p>点击 (x, y)。默认拟人: 贝塞尔轨迹到位→随机停顿→落点抖动(默认见</p>
 <h2>原型</h2>
-<pre>click(x, y)</pre>
-
+<pre>click(x, y, jitter=None, human=None, settle=None)</pre>
+scaffold.toml 的 human_mouse/click_jitter/click_settle_ms)。<br>jitter: 落点 ±px(0=精确); human=False 瞬移急点(速度优先, 停顿固定,<br>不吃 settle); settle: 到位停顿 ms。adb 端=停顿前摇+抖动 tap。
 <h2>示例</h2>
-<pre>click(231, 347)                       # 选中怪(角色自动攻击)</pre>
+<pre>click(231, 347)                       # 拟人点击(轨迹+停顿+抖动), 默认见 scaffold.toml
+click(231, 347, human=False)            # 瞬移急点(速度优先)
+click(231, 347, jitter=0, settle=200)  # 精确落点, 到位停 200ms</pre>
 </body></html>

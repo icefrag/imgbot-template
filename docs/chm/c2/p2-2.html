@@ -5,7 +5,7 @@
 <pre>find_multi_color(rect, points, direction=0)</pre>
 偏移点同时命中才返回锚点 (x, y) 或 None —— 色块与同色文字的判别器。<br>points 为 Pt 列表(pixpick 生产), 也收 [(dx,dy,"RRGGBB"[,tol]), ...] 色串。<br>direction: 多候选取哪个, 0 左上 1 左下 2 右上 3 右下。
 <h2>示例</h2>
-<pre>from bot.dsl import Pt
+<pre>from icefrag.dsl import Pt
 MON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]
 hit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None</pre>
 </body></html>
