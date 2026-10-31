@@ -109,15 +109,13 @@ class Worker:
             if self.gcfg.idle_timeout > 0:       # 无进展看门狗(防整夜卡死)
                 threading.Thread(target=self._watchdog, args=(ctx,),
                                  daemon=True).start()
-            while not self.stop_event.is_set():
+            while True:
                 try:
-                    task_mod.main_task(ctx)
-                    if self.stop_event.is_set():
-                        break
-                    self.state = "运行中"
-                    self.restarts = 0            # 正常跑完一轮, 重开计数清零
-                    self.log(f"一轮完成, {self.gcfg.loop_interval}s 后重开")
-                    self.stop_event.wait(self.gcfg.loop_interval)
+                    task_mod.main_task(ctx)        # 一个函数 = 任务全程, 返回即完成
+                    stopped = self.stop_event.is_set()
+                    self.state = "已停止" if stopped else "已完成"
+                    self.log("任务被停止" if stopped else "任务完成")
+                    return
                 except FatalError as e:                 # 致命: 重开无意义, 直接躺
                     ctx.shot("致命")
                     self.state = "异常(致命)"
@@ -142,6 +140,6 @@ class Worker:
         finally:
             if ctx is not None:
                 backends.unbind(ctx)
-            if not self.state.startswith("异常"):
+            if not self.state.startswith("异常") and self.state != "已完成":
                 self.state = "已停止"
             self.log("已收口解绑")

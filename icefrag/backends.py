@@ -7,11 +7,17 @@
 from __future__ import annotations
 
 import ctypes
+import random
+import re
 import time
+from collections import namedtuple
 
 from . import ROOT
 
 SHOTS = ROOT / "logs" / "shots"
+
+# dsl 拟人键鼠默认(window/adb 两端共用; settle_ms 区间每次随机取值)
+MouseStyle = namedtuple("MouseStyle", "human jitter settle_ms")
 
 
 # ==================== 拾取(window 端热键收编) ====================
@@ -63,7 +69,7 @@ class Ctx:
     """任务代码的全部世界(见 spec.md ctx 字段表)。字段按端装配。"""
 
     def __init__(self, backend: str, name: str, cfg, log, stop,
-                 dm=None, ops=None, device=None, nav=None):
+                 dm=None, ops=None, device=None, nav=None, mouse=None):
         self.backend = backend
         self.name = name                          # 显示名(表格行/日志前缀)
         self.cfg = cfg                            # 业务配置对象
@@ -73,6 +79,7 @@ class Ctx:
         self.ops = ops
         self.device = device
         self.nav = nav                            # 界面导航图(task 声明表时由 worker 建)
+        self.mouse = mouse or MouseStyle(True, 3, (60, 160))   # dsl click 默认风格
         self._last_progress = time.monotonic()    # 看门狗打点(dsl 命中/点击自动刷新)
 
     def progress(self, note: str = ""):
@@ -82,13 +89,22 @@ class Ctx:
     def shot(self, tag: str = "") -> Path | None:
         """失败留痕: window 端存当前帧, adb 端存设备截图。"""
         SHOTS.mkdir(parents=True, exist_ok=True)
-        p = SHOTS / f"{time.strftime('%m%d_%H%M%S')}_{self.name}_{tag or 'shot'}.png"
+        # 文件名消毒: 窗口标题/adb序列号常带 \ : 等非法字符, imwrite 不抛只返 False
+        stem = re.sub(r'[\\/:*?"<>|]', "_", f"{self.name}_{tag or 'shot'}")
+        p = SHOTS / f"{time.strftime('%m%d_%H%M%S')}_{stem}.png"
         try:
+            ok = False
             if self.dm is not None:               # window 绑定帧 / adb 鸭子帧源
                 import cv2
-                cv2.imwrite(str(p), self.dm._screen())
+                ok, buf = cv2.imencode(".png", self.dm._screen())
+                if ok:                            # 不走 cv2.imwrite: 中文路径它静默失败
+                    p.write_bytes(buf.tobytes())
             elif self.device is not None:
                 self.device.save_screenshot(str(p))
+                ok = True
+            if not ok:
+                self.log(f"shot 写盘失败: {p.name}", "warn")
+                return None
             return p
         except Exception:
             return None
@@ -104,12 +120,33 @@ def bind_window_backend(hwnd: int, scaffold, business_cfg, log, stop) -> Ctx:
     dm.SetPath(str(ROOT / "templates"))
     ops = Ops(dm)
     return Ctx("window", window_title(hwnd), business_cfg, log, stop,
-               dm=dm, ops=ops)
+               dm=dm, ops=ops,
+               mouse=MouseStyle(scaffold.human_mouse, scaffold.click_jitter,
+                                tuple(scaffold.click_settle_ms)))
+
+
+class _AdbMk:
+    """对齐 dm.keymouse 形状的 adb 键鼠鸭子: click=到位停顿(前摇)+tap,
+    double_click=两击带 80~120ms 间隔(零间隔真机不认双击)。
+    落点抖动归 dsl 层算好坐标再传进来。"""
+
+    def __init__(self, target):
+        self._t = target
+
+    def click(self, x, y, settle=None):
+        if settle:
+            time.sleep(settle)                    # adb 无轨迹, 到位停顿=点击前摇
+        self._t.tap(int(x), int(y))
+
+    def double_click(self, x, y, settle=None):
+        self.click(x, y, settle)
+        time.sleep(random.uniform(0.08, 0.12))
+        self.click(x, y)
 
 
 class _AdbDm:
-    """喂 Ops 门面的 adb 鸭子: _screen→设备截图(BGR), MoveTo+LeftClick→tap
-    (find_tap/tap_until_gone 的拟人点击走这条路)。"""
+    """喂 Ops 门面的 adb 鸭子: _screen→设备截图(BGR), keymouse→拟人点击
+    (find_tap/tap_until_gone/dsl.click 的一步式点击走这条路)。"""
 
     def __init__(self, target):
         self._t = target
@@ -117,6 +154,10 @@ class _AdbDm:
 
     def _screen(self):
         return self._t.screenshot()
+
+    @property
+    def keymouse(self):
+        return _AdbMk(self._t)
 
     def MoveTo(self, x, y):
         self._pos = (int(x), int(y))
@@ -133,7 +174,9 @@ def bind_adb_backend(serial: str, scaffold, business_cfg, log, stop) -> Ctx:
     dm = _AdbDm(target)
     ops = Ops(dm)
     return Ctx("adb", serial, business_cfg, log, stop,
-               device=target, ops=ops, dm=dm)
+               device=target, ops=ops, dm=dm,
+               mouse=MouseStyle(scaffold.human_mouse, scaffold.click_jitter,
+                                tuple(scaffold.click_settle_ms)))
 
 
 def build_nav(task_mod, ctx) -> "object | None":

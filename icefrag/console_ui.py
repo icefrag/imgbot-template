@@ -291,7 +291,7 @@ class Console:
         entries = {}
         if not getattr(sys, "frozen", False):
             # Tab1: 脚手架层——弹窗只留常用项; 通道枚举/经典分辨率全下拉,
-            # 冷门项(pick_mode/max_restarts/loop_interval)直接改 scaffold.toml
+            # 冷门项(pick_mode/max_restarts)直接改 scaffold.toml
             f1 = ttk.Frame(nb, padding=10)
             nb.add(f1, text="脚手架")
             disp_chans = ["normal", "gdi", "windows", "dx"]   # gdi 仅图色

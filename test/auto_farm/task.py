@@ -8,7 +8,7 @@ test/legend_game.py 头注释(怪 #CC3333 半径16 / 金币 #FFD700 半径8)。
 """
 import time
 
-from bot.dsl import *  # noqa: F401,F403
+from icefrag.dsl import *  # noqa: F401,F403
 
 RED = (51, 51, 204)      # #CC3333 的 BGR
 GOLD = (0, 215, 255)     # #FFD700 的 BGR

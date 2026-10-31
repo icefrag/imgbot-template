@@ -13,7 +13,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from bot import backends, dsl   # noqa: E402
+from icefrag import backends, dsl   # noqa: E402
 
 
 class FakeOps:

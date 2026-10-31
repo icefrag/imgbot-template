@@ -30,9 +30,13 @@ class ScaffoldConfig:
     hotkey_vk: int = 0x78              # F9(VK_F1=0x70 递增)
     pick_mode: str = "hover"           # hover=鼠标下窗口 | focus=活动窗口的焦点子窗口
 
+    # 拟人键鼠(dsl click/dblclick 的默认, 调用处可单次覆盖)
+    human_mouse: bool = True           # True=贝塞尔轨迹+随机停顿; False=瞬移急点(速度优先)
+    click_jitter: int = 3              # 落点抖动 ±px(0=关)
+    click_settle_ms: list[int] = field(default_factory=lambda: [60, 160])   # 到位停顿区间
+
     # 运行策略
     max_restarts: int = 3              # 任务异常自动重开次数, 连败熔断
-    loop_interval: float = 1.0         # 任务轮间隔秒
 
     # 外观
     window_size: list[int] = field(default_factory=lambda: [1280, 800])

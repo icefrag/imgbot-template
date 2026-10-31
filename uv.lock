@@ -29,8 +29,33 @@ wheels = [
 ]
 
 [[package]]
+name = "icefrag"
+version = "0.3.0"
+source = { editable = "." }
+dependencies = [
+    { name = "imgbot", extra = ["ocr"] },
+    { name = "tomli-w" },
+    { name = "ttkbootstrap" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyinstaller" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "imgbot", extras = ["ocr"], editable = "../imgbot" },
+    { name = "tomli-w", specifier = ">=1.0" },
+    { name = "ttkbootstrap", specifier = ">=1.10.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pyinstaller", specifier = ">=6.22.3" }]
+
+[[package]]
 name = "imgbot"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../imgbot" }
 dependencies = [
     { name = "numpy" },
@@ -52,31 +77,6 @@ provides-extras = ["ocr"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "rapidocr-onnxruntime", specifier = ">=1.4.4" }]
-
-[[package]]
-name = "imgbot-template"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "imgbot", extra = ["ocr"] },
-    { name = "tomli-w" },
-    { name = "ttkbootstrap" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pyinstaller" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "imgbot", extras = ["ocr"], editable = "../imgbot" },
-    { name = "tomli-w", specifier = ">=1.0" },
-    { name = "ttkbootstrap", specifier = ">=1.10.1" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pyinstaller", specifier = ">=6.22.3" }]
 
 [[package]]
 name = "macholib"

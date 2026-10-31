@@ -11,11 +11,11 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))          # 项目根(bot/ 所在)
+sys.path.insert(0, str(HERE.parent))          # 项目根(icefrag/ 所在)
 sys.path.insert(0, str(HERE / "auto_farm"))   # 借用 auto_farm 的 business
 
 import business                        # noqa: E402  (auto_farm 的业务配置)
-from bot import backends, dsl, settings   # noqa: E402
+from icefrag import backends, dsl, settings   # noqa: E402
 
 
 def first_serial() -> str:

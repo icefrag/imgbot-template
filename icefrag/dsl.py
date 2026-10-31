@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DSL: task.py 的顶层挂机动词表。task.py 顶部一行 `from bot.dsl import *` 即得。
+"""DSL: task.py 的顶层挂机动词表。task.py 顶部一行 `from icefrag.dsl import *` 即得。
 
 约定(违者必踩):
   ① 凡时间皆毫秒 —— sleep(500)=半秒, timeout=10000=10 秒(默认值);
@@ -10,15 +10,20 @@
      probe/check_points...)与窗口管理走 ctx.ops / ctx.dm / ctx.device 逃生舱。
 
 命令速查(★ = 一步顶三步的招牌复合动作):
-  键鼠  click(x, y)   dblclick(x, y)   move(x, y)   key("ctrl+s")   sleep(ms)
-  消息  log(text)   shot(tag)
+  键鼠  click(x, y[, jitter, human, settle])  拟人点击: 贝塞尔轨迹+随机停顿+
+        落点抖动(默认在 scaffold.toml, 调用处可单次覆盖; human=False 瞬移急点)
+        dblclick(x, y[, ...])  双击(同 click 参数)
+        drag(x1, y1, x2, y2, ms)   按住拖拽(列表滚动/滑块)
+        move(x, y)   key("ctrl+s")   sleep(ms)|(lo, hi 随机)
+  消息  log(text)   shot(tag)   stopped() -> bool(F9 叫停了吗, 挂机循环退出条件)
   找点  find_color(color, region, tol) -> [(x, y), ...]    单帧找全部色块
         find_all(pic) -> [(x, y), ...]                      单帧找全部同类图
         find_multi_color(rect, pts, direction) -> (x, y)|None  多点找色(大漠
         FindMultiColor 对应物, 色块与同色文字的判别器; pts=[Pt(0,0,色,tol),...],
         pixpick 生产, 见 imgbot 仓《多点找色Pt规范.md》)
         exists(pic) -> bool
-  ★     find_tap(pic, timeout=0) -> bool                    找到就点(0=单帧)
+  ★     find_tap(pic, timeout=0, verify=None) -> bool      找到就拟人点(0=单帧;
+        verify=点后必须出现的图, 没等到=失败, 防"点了没跳转")
   ★     tap_until_gone(pic, timeout) -> int 连点数          连点到消失
   等待  wait_pic(pic) -> (x, y, 分数) | None
         wait_pic_any(pics) -> (名, x, y, 分数) | None
@@ -28,12 +33,13 @@
         ocr_numbers(region) -> [23, 456]       抠数字(等级取[0], 坐标取[:2])
   找字  find_str(text, region) -> (x, y) | None  找文字位置(大漠 FindStr 风,
         找到就能点; 关键词 ≥4 字才稳)
-  导航  go("dungeon") -> bool   界面导航图带路(task.py 声明 NAV_SCREENS/NAVEDGES,
+  导航  go("dungeon") -> bool   界面导航图带路(task.py 声明 NAV_SCREENS/NAV_EDGES,
         迷路自动重定位自愈; 迷路且重定位失败抛 LostError → 配 on_fuse 重登)
         at("city") -> bool      期望验证: 是否在指定界面(单帧一张锚点, 便宜)
 """
 from __future__ import annotations
 
+import random
 import re
 import threading
 import time
@@ -67,7 +73,7 @@ def _ctx():
 
 
 __all__ = [
-    "click", "dblclick", "move", "key", "sleep", "log", "shot",
+    "click", "dblclick", "drag", "move", "key", "sleep", "stopped", "log", "shot",
     "find_color", "find_all", "find_multi_color", "exists",
     "find_tap", "tap_until_gone",
     "wait_pic", "wait_pic_any", "wait_pic_gone",
@@ -78,26 +84,80 @@ __all__ = [
 
 
 # ================= 键鼠(端无关: window=dm / adb=device) =================
-def click(x: int, y: int):
-    """点击 (x, y)。window: 移动+左键; adb: tap。"""
+def _pt_jitter(x, y, j):
+    """落点抖动 ±j px(0=关): 每次精确点同一处也是机器人特征。"""
+    if not j:
+        return x, y
+    return x + random.randint(-j, j), y + random.randint(-j, j)
+
+
+def _settle_s(mouse, settle):
+    """dsl 毫秒 → 键鼠层秒; None 取配置区间随机(人不是节拍器)。"""
+    if settle is not None:
+        return settle / 1000
+    lo, hi = mouse.settle_ms
+    return random.uniform(lo, hi) / 1000
+
+
+def click(x: int, y: int, jitter: int | None = None,
+          human: bool | None = None, settle: int | None = None):
+    """点击 (x, y)。默认拟人: 贝塞尔轨迹到位→随机停顿→落点抖动(默认见
+    scaffold.toml 的 human_mouse/click_jitter/click_settle_ms)。
+    jitter: 落点 ±px(0=精确); human=False 瞬移急点(速度优先, 停顿固定,
+    不吃 settle); settle: 到位停顿 ms。adb 端=停顿前摇+抖动 tap。"""
+    ctx = _ctx()
+    ctx.progress()
+    m = ctx.mouse
+    j = m.jitter if jitter is None else jitter
+    h = m.human if human is None else human
+    tx, ty = _pt_jitter(x, y, j)
+    if ctx.backend == "window":
+        if h:
+            ctx.dm.keymouse.click(tx, ty, settle=_settle_s(m, settle))
+        else:
+            ctx.dm.MoveTo(tx, ty)             # 老两步: 瞬移+固定 50ms
+            ctx.dm.LeftClick()
+    else:
+        ctx.dm.keymouse.click(tx, ty,
+                              settle=_settle_s(m, settle) if h else 0.0)
+
+
+def dblclick(x: int, y: int, jitter: int | None = None,
+             human: bool | None = None, settle: int | None = None):
+    """双击 (x, y), 参数同 click; adb 端两击带 80~120ms 间隔。"""
+    ctx = _ctx()
+    ctx.progress()
+    m = ctx.mouse
+    j = m.jitter if jitter is None else jitter
+    h = m.human if human is None else human
+    tx, ty = _pt_jitter(x, y, j)
+    if ctx.backend == "window":
+        if h:
+            ctx.dm.keymouse.double_click(tx, ty, settle=_settle_s(m, settle))
+        else:
+            ctx.dm.MoveTo(tx, ty)
+            ctx.dm.LeftDoubleClick()
+    else:
+        ctx.dm.keymouse.double_click(tx, ty,
+                                     settle=_settle_s(m, settle) if h else 0.0)
+
+
+def drag(x1: int, y1: int, x2: int, y2: int, ms: int = 350):
+    """按住拖拽(列表滚动/滑块): window=按住左键插值拖, adb=原生 swipe。"""
     ctx = _ctx()
     ctx.progress()
     if ctx.backend == "window":
-        ctx.dm.MoveTo(x, y)
-        ctx.dm.LeftClick()
+        dm = ctx.dm
+        steps = max(6, int(ms / 30))          # ~30ms 一步, 与 ops._swipe_once 同拍
+        dm.MoveTo(x1, y1)
+        dm.LeftDown()
+        for i in range(1, steps + 1):
+            t = i / steps
+            dm.MoveTo(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t))
+            time.sleep(ms / steps / 1000)
+        dm.LeftUp()
     else:
-        ctx.device.tap(x, y)                 # adb 分支: 真机验收后校准
-
-
-def dblclick(x: int, y: int):
-    """双击 (x, y)。"""
-    ctx = _ctx()
-    if ctx.backend == "window":
-        ctx.dm.MoveTo(x, y)
-        ctx.dm.LeftDoubleClick()
-    else:
-        ctx.device.tap(x, y)                 # adb 近似: 双击≈两连点
-        ctx.device.tap(x, y)
+        ctx.device.swipe(int(x1), int(y1), int(x2), int(y2), int(ms))
 
 
 def move(x: int, y: int):
@@ -134,16 +194,27 @@ def key(s: str):
 
 
 # ================= 消息 =================
-def sleep(ms: int):
-    """可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。"""
+def sleep(ms):
+    """可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。
+    ms 给区间则每次取随机: sleep((400, 900)) —— 固定间隔是检测特征。"""
+    if isinstance(ms, (tuple, list)):
+        ms = random.uniform(ms[0], ms[1])
     _ctx().stop.wait(ms / 1000)
 
 
+def stopped() -> bool:
+    """F9 停止键按下过吗 —— 挂机循环的退出条件: while not stopped(): ...
+    (sleep/等待族被叫停只是提前醒/返 None, 循环真正退出靠它)。"""
+    return _ctx().stop.is_set()
+
+
 def log(text: str, level: str = "info"):
+    """打一条日志(中控台日志面板/终端), level: info|warn|error。"""
     _ctx().log(text, level)
 
 
 def shot(tag: str = ""):
+    """截当前绑定目标一帧存 logs/shots/(月日_时分秒_目标_标签.png)留痕, 返回路径或 None。"""
     return _ctx().shot(tag)
 
 
@@ -185,11 +256,14 @@ def find_multi_color(rect, points, direction: int = 0):
 
 # ================= 复合动作(招牌) =================
 def find_tap(pic: str, region=None, timeout: int = 0,
-             threshold: float | None = None) -> bool:
-    """找到就拟人点。timeout=0 单帧试; 超时返 False。"""
+             threshold: float | None = None,
+             verify: str | None = None) -> bool:
+    """找到就拟人点(贝塞尔轨迹+停顿)。timeout=0 单帧试; verify=点后必须
+    出现的图(没等到=失败, 防"点了没跳转"); 超时返 False。"""
     return _ctx().ops.find_tap(pic, region=region,
                                timeout=timeout / 1000 if timeout else 0,
-                               threshold=threshold, stop=_ctx().stop)
+                               threshold=threshold, verify=verify,
+                               stop=_ctx().stop)
 
 
 def tap_until_gone(pic: str, region=None, timeout: int = 10000,

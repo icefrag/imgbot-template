@@ -15,9 +15,9 @@ sys.path.insert(0, str(SCAFFOLD))
 sys.path.insert(0, str(HERE))
 
 import business  # noqa: E402
-from bot import settings  # noqa: E402
-from bot.store import load as biz_load  # noqa: E402
-from bot.worker import Worker  # noqa: E402
+from icefrag import settings  # noqa: E402
+from icefrag.store import load as biz_load  # noqa: E402
+from icefrag.worker import Worker  # noqa: E402
 
 
 def main() -> int:

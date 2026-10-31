@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DSL 语法清单生成器: bot/dsl.py 内省 → 三产物(给 task.py 写逻辑的开发者)。
+"""DSL 语法清单生成器: icefrag/dsl.py 内省 → 三产物(给 task.py 写逻辑的开发者)。
 
 - docs/DSL语法清单.md     给 AI 看(全部命令: 签名+说明+示例)
 - docs/DSL语法清单.html   单文件版(浏览器直接开)
@@ -9,7 +9,7 @@
 说明取 docstring, 示例手排 EXAMPLES。
 
 用法: uv run scripts/build_docs.py
-变更 bot/dsl.py 后必须重跑本脚本(AGENTS.md 规则)。
+变更 icefrag/dsl.py 后必须重跑本脚本(AGENTS.md 规则)。
 """
 from __future__ import annotations
 
@@ -22,15 +22,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from bot import dsl  # noqa: E402
+from icefrag import dsl  # noqa: E402
 
 DOCS = ROOT / "docs"
-TITLE = "imgbot-template DSL 语法清单"
+TITLE = "icefrag DSL 语法清单"
 
 # 分类页序(手排; 命令名必须与 dsl.__all__ 一致, 漏了脚本会报)
 GROUPS = [
-    ("键鼠", ["click", "dblclick", "move", "key", "sleep"]),
-    ("消息", ["log", "shot"]),
+    ("键鼠", ["click", "dblclick", "drag", "move", "key", "sleep"]),
+    ("消息", ["log", "shot", "stopped"]),
     ("找点(单帧)", ["find_color", "find_all", "find_multi_color", "exists"]),
     ("复合动作", ["find_tap", "tap_until_gone"]),
     ("等待(超时返 None/False)", ["wait_pic", "wait_pic_any", "wait_pic_gone",
@@ -41,16 +41,18 @@ GROUPS = [
 ]
 
 EXAMPLES = {
-    "click": 'click(231, 347)                       # 选中怪(角色自动攻击)',
+    "click": 'click(231, 347)                       # 拟人点击(轨迹+停顿+抖动), 默认见 scaffold.toml\nclick(231, 347, human=False)            # 瞬移急点(速度优先)\nclick(231, 347, jitter=0, settle=200)  # 精确落点, 到位停 200ms',
     "dblclick": 'dblclick(400, 300)',
+    "drag": 'drag(450, 550, 450, 150)               # 列表上滑(按住拖)\ndrag(100, 300, 500, 300, ms=500)       # 横拖, 500ms',
     "move": 'move(400, 300)                         # 悬停不点',
     "key": 'key("ctrl+s")\nkey("enter")',
     "sleep": 'sleep(500)                            # 半秒, F9 按下立刻醒',
     "log": 'log(f"击杀 ×{kills}", "info")           # level: info|warn|error',
     "shot": 'shot("boss出现")                       # 留痕到 logs/shots',
+    "stopped": 'while not stopped():               # F9 叫停了吗(挂机循环退出条件)\n    打怪一轮()',
     "find_color": 'hit = find_color("CC3333", tol=40, region=(0, 0, 900, 570))\nif hit: click(*hit[0])',
     "find_all": 'for x, y in find_all("小地图图标.png"): click(x, y)',
-    "find_multi_color": 'from bot.dsl import Pt\nMON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]\nhit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None',
+    "find_multi_color": 'from icefrag.dsl import Pt\nMON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]\nhit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None',
     "exists": 'if exists("金币满.png"): key("b")',
     "find_tap": 'find_tap("领取按钮.png")                        # 单帧试\nfind_tap("每日签到.png", timeout=5000)              # 等最多 5 秒',
     "tap_until_gone": 'n = tap_until_gone("确定按钮.png")       # 返回点击次数',
@@ -79,7 +81,7 @@ RULES = """<h2>四条铁律</h2>
 </ol>"""
 
 SKELETON = """<h2>task.py 骨架</h2>
-<pre>from bot.dsl import *          # 唯一的前缀
+<pre>from icefrag.dsl import *          # 唯一的前缀
 
 def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动重开)
     while not ctx.stop.is_set():
@@ -147,7 +149,7 @@ def build():
 
     # -- md(AI 权威版) --
     md = [f"# {TITLE}", "",
-          "> 参数表由 `scripts/build_docs.py` 从 bot/dsl.py 签名内省生成,",
+          "> 参数表由 `scripts/build_docs.py` 从 icefrag/dsl.py 签名内省生成,",
           "> 改 dsl 后重跑脚本(AGENTS.md 规则)。铁律: 凡时间皆毫秒 / 超时返",
           "> None 不抛 / F9 贯穿 / ctx.dm·ctx.ops·ctx.device 是逃生舱。", ""]
     ids = {}
@@ -171,7 +173,7 @@ def build():
             (chm_dir / f"{ids[n]}.html").write_text(page_html(n), encoding="utf-8")
     (chm_dir / "index.html").write_text("\n".join([
         _head(TITLE), f"<h1>{TITLE}</h1>",
-        "<p>task.py 顶部 <code>from bot.dsl import *</code> 后的顶层命令速查。</p>",
+        "<p>task.py 顶部 <code>from icefrag.dsl import *</code> 后的顶层命令速查。</p>",
         RULES, SKELETON,
         "<h2>命令目录</h2>"] + [
         f"<p><b>{cat}</b>: " + " ".join(
