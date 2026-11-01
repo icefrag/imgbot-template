@@ -409,10 +409,10 @@ while not stopped():
 | `backend` | str | `'window'` | 目标端: "window"(PC 窗口) &#124; "adb"(模拟器/真机) |
 | `window_class` | str | `''` | window 端热键收编的类名过滤串(空=不过滤); 收编到子控件时用它锁定 |
 | `display` | str | `'normal'` | 截屏通道: normal 前台抓屏 &#124; gdi 后台 PrintWindow(遮挡可截, 通用首选) &#124; gdi2 兼容模式(慢但稳, gdi 截图不刷新时) &#124; dx 潜影注入(3D 游戏) |
-| `mouse` | str | `'normal'` | 鼠标通道: normal SendInput 真鼠标(需前台) &#124; windows PostMessage 后台 &#124; windows2 dx 消息+虚拟光标锁(治点击坐标总偏) &#124; dx 潜影 |
+| `mouse` | str | `'normal'` | 鼠标通道: normal SendInput 真鼠标(需前台) &#124; windows PostMessage 后台 &#124; windows2 dx 消息+虚拟光标锁(治点击坐标总偏) &#124; dx 潜影(2026-11-01 起自动武装 dx 鼠标全家桶: 键态/光标锁/GetCapture/ClipCursor/消息位置钉死+队列交付; 激活门槛型游戏配 fake_active) |
 | `keypad` | str | `'normal'` | 键盘通道: 同 mouse; windows=带扫描码消息按键, 只达读消息循环的窗口, 轮询型游戏免疫→换 dx+hook_keystate |
 | `fake_active` | bool | `False` | 绑定后假激活(EnableFakeActive): 治"唯独点击无反应"的后台激活门槛, 需 dx 系通道 |
-| `hook_keystate` | bool | `False` | 键状态钩子: 治"键盘消息无反应"(游戏轮询键态不读消息), 需键盘 dx 通道 |
+| `hook_keystate` | bool | `False` | 键状态钩子: 治"键盘消息无反应"(游戏轮询键态不读消息), 需键盘 dx 通道(mouse/keypad 任一 dx 现已自动含于此, 开关冗余留兼容) |
 | `hide_module` | bool | `False` | 注入件模块隐身: 反作弊扫进程模块时开, 需 dx 系通道 |
 | `adb_serials` | list[str] | `[]` | adb 端预置序列号列表(空=自动发现) |
 | `hotkey` | str | `'f9'` | 启动热键(收编/再按停止): f1~f12 / pause / scrolllock / home / end / insert / delete |
