@@ -1,0 +1,13 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>目标与通道</h1><table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>backend</code></td><td>str</td><td><code>'window'</code></td><td>目标端: "window"(PC 窗口) | "adb"(模拟器/真机)</td></tr>
+<tr><td><code>window_class</code></td><td>str</td><td><code>''</code></td><td>window 端热键收编的类名过滤串(空=不过滤); 收编到子控件时用它锁定</td></tr>
+<tr><td><code>display</code></td><td>str</td><td><code>'normal'</code></td><td>截屏通道: normal 前台抓屏 | gdi 后台 PrintWindow(遮挡可截, 通用首选) | gdi2 兼容模式(慢但稳, gdi 截图不刷新时) | dx 潜影注入(3D 游戏)</td></tr>
+<tr><td><code>mouse</code></td><td>str</td><td><code>'normal'</code></td><td>鼠标通道: normal SendInput 真鼠标(需前台) | windows PostMessage 后台 | windows2 dx 消息+虚拟光标锁(治点击坐标总偏) | dx 潜影</td></tr>
+<tr><td><code>keypad</code></td><td>str</td><td><code>'normal'</code></td><td>键盘通道: 同 mouse; windows=带扫描码消息按键, 只达读消息循环的窗口, 轮询型游戏免疫→换 dx+hook_keystate</td></tr>
+<tr><td><code>fake_active</code></td><td>bool</td><td><code>False</code></td><td>绑定后假激活(EnableFakeActive): 治"唯独点击无反应"的后台激活门槛, 需 dx 系通道</td></tr>
+<tr><td><code>hook_keystate</code></td><td>bool</td><td><code>False</code></td><td>键状态钩子: 治"键盘消息无反应"(游戏轮询键态不读消息), 需键盘 dx 通道</td></tr>
+<tr><td><code>hide_module</code></td><td>bool</td><td><code>False</code></td><td>注入件模块隐身: 反作弊扫进程模块时开, 需 dx 系通道</td></tr>
+<tr><td><code>adb_serials</code></td><td>list[str]</td><td><code>[]</code></td><td>adb 端预置序列号列表(空=自动发现)</td></tr>
+<tr><td><code>hotkey</code></td><td>str</td><td><code>'f9'</code></td><td>启动热键(收编/再按停止): f1~f12 / pause / scrolllock / home / end / insert / delete</td></tr>
+<tr><td><code>pick_mode</code></td><td>str</td><td><code>'hover'</code></td><td>收编模式: hover 拾鼠标下窗口 | focus 拾焦点子窗口(模拟器渲染窗)</td></tr>
+</table></body></html>

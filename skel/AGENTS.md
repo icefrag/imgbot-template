@@ -7,10 +7,10 @@
 
 1. **只写 `task.py`(任务逻辑)与 `business.py`(业务参数)**; 素材 PNG 放 `templates/`;
    需要调通道/热键/看门狗时改 `scaffold.toml`。
-   **禁改**: `main.py`/`console.py`/`build_exe.py`(框架薄入口)、`libs/`(框架 wheel,
+   **禁改**: `console.py`/`build_exe.py`(框架薄入口)、`libs/`(框架 wheel,
    升级=作者发新文件, 换文件改 pyproject 那行 + uv sync)、`.venv/`。
 2. **main_task(ctx) = 任务全程, 正常返回 = 任务完成收口**: 挂机循环自己写
-   `while not ctx.stop.is_set():`。预期内的失败(没找到怪/点击落空)在循环里
+   `while not stopped():`。预期内的失败(没找到怪/点击落空)在循环里
    try/except 掉——那是业务;冒泡异常框架自动重开(重绑重进, 连败 max_restarts 次
    熔断;可定义 `on_fuse(ctx) -> bool` 自救);重开也救不了的场景
    `raise FatalError("账号被封")`。
@@ -25,11 +25,11 @@
 
 ## 验证循环
 
-1. `uv run main.py` 单开裸跑(鼠标悬停目标窗口按 F9 收编), 看终端日志;
+1. `uv run console.py` 中控台(鼠标悬停目标窗口按 F9 收编, 收编几个跑几个),
+   表格选行看右侧日志;
 2. `logs/shots/` 是截图留痕(`shot("标签")` 与异常/看门狗自动截图都在),
    排查"画面到底长什么样"先翻这里——那是框架眼里的画面, 与屏幕截图同源;
-3. 稳了再 `uv run console.py` 多开验证;
-4. 打包给最终用户: `uv run build_exe.py` → `dist/<名>-v<版本>.zip`
+3. 打包给最终用户: `uv run build_exe.py` → `dist/<名>-v<版本>.zip`
    (目标机零 Python; bin/ 注入件被 Defender 报毒是常态, 加排除目录)。
 
 ## 环境(不用你管, 知道即可)

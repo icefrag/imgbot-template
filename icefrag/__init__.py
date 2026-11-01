@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """icefrag 脚手架框架包(薄项目经 wheel 引用, 不拷源码): worker/backends/hotkeys/
-settings/store/console_ui/dsl/bootstrap/build。
+settings/store/console_ui/dsl/build。
 
 ROOT = 项目根(scaffold.toml/templates/logs 所在)。默认 = 本包的上级目录;
 PyInstaller exe 里 = exe 所在目录(scaffold.toml/templates 摆 exe 旁, 用户可编辑);

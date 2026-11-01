@@ -1,0 +1,5 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>拟人键鼠(dsl click/dblclick 的默认)</h1><table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>human_mouse</code></td><td>bool</td><td><code>True</code></td><td>拟人键鼠总开关: true=贝塞尔轨迹+随机停顿+落点抖动; false=瞬移急点(速度优先)</td></tr>
+<tr><td><code>click_jitter</code></td><td>int</td><td><code>3</code></td><td>点击落点抖动 ±px(0=精确落点); 防每次点同一位的机器人特征</td></tr>
+<tr><td><code>click_settle_ms</code></td><td>list[int]</td><td><code>[60, 160]</code></td><td>点击到位停顿区间 ms, 每次取区间随机(人不是节拍器); 调用处可单次覆盖</td></tr>
+</table></body></html>

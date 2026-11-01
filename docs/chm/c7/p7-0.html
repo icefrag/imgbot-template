@@ -5,7 +5,7 @@
 <pre>progress(note='')</pre>
 长轮询循环里打点, 防无进展看门狗误杀。
 <h2>示例</h2>
-<pre>while not ctx.stop.is_set():
+<pre>while not stopped():
     progress("等刷新")          # 长轮询手动打点, 防看门狗误杀
     sleep(2000)</pre>
 </body></html>

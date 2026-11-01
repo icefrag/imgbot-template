@@ -3,8 +3,12 @@ window_class = ""
 display = "normal"
 mouse = "normal"
 keypad = "normal"
+# 绑定后能力开关(需 dx 系通道, 非 dx 时警告跳过; 症状→处方见 docs/icefrag开发手册.md)
+fake_active = false
+hook_keystate = false
+hide_module = false
 adb_serials = []
-hotkey_vk = 120
+hotkey = "f9"
 pick_mode = "hover"
 max_restarts = 3
 window_size = [

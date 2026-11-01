@@ -39,5 +39,5 @@ _Avoid_: 安装(那是对脚本开发者而言的动作)
 _Avoid_: 发布到 GitHub(那是面向世界的辅通道,不是主通道)
 
 **骨架(skeleton)**:
-薄项目的出生模板: 入口四件套 + pyproject(指向 libs/ 内 wheel) + scaffold.toml,随发版打成 zip。
+薄项目的出生模板: 入口(console/build_exe) + pyproject(指向 libs/ 内 wheel) + scaffold.toml,随发版打成 zip。
 _Avoid_: 脚手架(那是框架本身,别混)

@@ -110,14 +110,35 @@ class Ctx:
             return None
 
 
+def _apply_dx_switches(dm, scaffold, log) -> None:
+    """绑定后能力开关(对症下药): 全部依赖注入件(dx 系通道)在场。
+    注入件不在场时警告跳过——配置失配不该打断收编, 日志留痕可见。"""
+    wants = [label for attr, label in (("fake_active", "假激活"),
+                                       ("hook_keystate", "键状态钩子"),
+                                       ("hide_module", "隐藏模块"))
+             if getattr(scaffold, attr, False)]
+    if not wants:
+        return
+    if getattr(dm, "_dx", None) is None:
+        log(f"开关[{'+'.join(wants)}]需 dx 系通道(注入件不在场), 已跳过", "warn")
+        return
+    if scaffold.fake_active:
+        dm.EnableFakeActive(1)
+    if scaffold.hook_keystate:
+        dm._dx.hook_keystate()
+    if scaffold.hide_module:
+        dm._dx.hide_module()
+
+
 def bind_window_backend(hwnd: int, scaffold, business_cfg, log, stop) -> Ctx:
-    """window 端绑定: DmSoft → 通道 → 模板目录 → Ops。"""
+    """window 端绑定: DmSoft → 通道 → 对症开关 → 模板目录 → Ops。"""
     from imgbot.dmsoft import DmSoft
     from imgbot.ops import Ops
     dm = DmSoft()
     assert dm.BindWindow(hwnd, scaffold.display, scaffold.mouse,
                          scaffold.keypad, 0) == 1, "BindWindow 失败"
     dm.SetPath(str(ROOT / "templates"))
+    _apply_dx_switches(dm, scaffold, log)
     ops = Ops(dm)
     return Ctx("window", window_title(hwnd), business_cfg, log, stop,
                dm=dm, ops=ops,

@@ -1,18 +1,21 @@
 # -*- coding: utf-8 -*-
-"""DSL 语法清单生成器: icefrag/dsl.py 内省 → 三产物(给 task.py 写逻辑的开发者)。
+"""icefrag 开发手册生成器 → 三产物(给脚本开发者, 骨架 zip 的 README 即 md 版)。
 
-- docs/DSL语法清单.md     给 AI 看(全部命令: 签名+说明+示例)
-- docs/DSL语法清单.html   单文件版(浏览器直接开)
-- docs/DSL语法清单.chm    编译版(便携 hhc 在 D:/tools/hhw, 同 imgbot 接口文档链)
+- docs/icefrag开发手册.md    给 AI / 骨架 README(全文: 上手+业务+DSL 语法+配置+通道+保障+打包+FAQ)
+- docs/icefrag开发手册.html  单文件版(浏览器直接开)
+- docs/icefrag开发手册.chm   编译版(便携 hhc 在 D:/tools/hhw; 内部路径 ASCII, 名字 GBK)
 
-参数表权威 = inspect.signature 实时内省(必传/默认值与代码不漂移);
-说明取 docstring, 示例手排 EXAMPLES。
+防漂移(违者直接退出, 与代码对账):
+- DSL 命令表: 签名 inspect.signature 实时内省; GROUPS 漏命令/多命令报错;
+- 配置表: 默认值/类型从 ScaffoldConfig dataclass 内省; CFG_DESC 少写/多写键报错。
+散文章节手排 PROSE(唯一文档源, 手写手册已退役)。
 
 用法: uv run scripts/build_docs.py
-变更 icefrag/dsl.py 后必须重跑本脚本(AGENTS.md 规则)。
+变更 icefrag/dsl.py 或 icefrag/settings.py 后必须重跑(AGENTS.md 规则)。
 """
 from __future__ import annotations
 
+import dataclasses
 import inspect
 import shutil
 import subprocess
@@ -22,14 +25,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from icefrag import dsl  # noqa: E402
+from icefrag import dsl, settings as scfg  # noqa: E402
 
 DOCS = ROOT / "docs"
-TITLE = "icefrag DSL 语法清单"
+TITLE = "icefrag 开发手册"
+CHM_NAME = "icefrag开发手册"
 
-# 分类页序(手排; 命令名必须与 dsl.__all__ 一致, 漏了脚本会报)
+# ==================== DSL 命令分组(签名内省) ====================
 GROUPS = [
-    ("键鼠", ["click", "dblclick", "drag", "move", "key", "sleep"]),
+    ("键鼠", ["click", "dblclick", "drag", "move", "key", "type_text", "sleep"]),
     ("消息", ["log", "shot", "stopped"]),
     ("找点(单帧)", ["find_color", "find_all", "find_multi_color", "exists"]),
     ("复合动作", ["find_tap", "tap_until_gone"]),
@@ -46,7 +50,8 @@ EXAMPLES = {
     "drag": 'drag(450, 550, 450, 150)               # 列表上滑(按住拖)\ndrag(100, 300, 500, 300, ms=500)       # 横拖, 500ms',
     "move": 'move(400, 300)                         # 悬停不点',
     "key": 'key("ctrl+s")\nkey("enter")',
-    "sleep": 'sleep(500)                            # 半秒, F9 按下立刻醒',
+    "type_text": 'find_tap("聊天框.png")                      # 先点开输入框\ntype_text("出售红药500金")               # 打字(中文可)\n# 老ANSI窗口打不进字: ctx.dm.SendString(hwnd, "文字", ime=True)',
+    "sleep": 'sleep(500)                            # 半秒, F9 按下立刻醒\nsleep((400, 900))                    # 区间随机(固定间隔是检测特征)',
     "log": 'log(f"击杀 ×{kills}", "info")           # level: info|warn|error',
     "shot": 'shot("boss出现")                       # 留痕到 logs/shots',
     "stopped": 'while not stopped():               # F9 叫停了吗(挂机循环退出条件)\n    打怪一轮()',
@@ -54,7 +59,7 @@ EXAMPLES = {
     "find_all": 'for x, y in find_all("小地图图标.png"): click(x, y)',
     "find_multi_color": 'from icefrag.dsl import Pt\nMON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]\nhit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None',
     "exists": 'if exists("金币满.png"): key("b")',
-    "find_tap": 'find_tap("领取按钮.png")                        # 单帧试\nfind_tap("每日签到.png", timeout=5000)              # 等最多 5 秒',
+    "find_tap": 'find_tap("领取按钮.png")                        # 单帧试\nfind_tap("每日签到.png", timeout=5000)              # 等最多 5 秒\nfind_tap("签到.png", verify="主界面.png")          # 点后必须见到确认图',
     "tap_until_gone": 'n = tap_until_gone("确定按钮.png")       # 返回点击次数',
     "wait_pic": 'hit = wait_pic("结算面板.png", timeout=8000)   # (x, y, 分) | None',
     "wait_pic_any": 'hit = wait_pic_any(["升级.png", "断线.png"])  # (名, x, y, 分) | None',
@@ -67,47 +72,298 @@ EXAMPLES = {
     "find_str": 'hit = find_str("每日签到")                     # 找字位置 (x, y) | None\nif hit: click(*hit)                  # 找到就能点\n# 短词(2字)不稳: 缩 region + min_ratio=0.5',
     "go": 'if not go("dungeon"): return        # 图带路(声明 NAV_SCREENS/NAV_EDGES)\n# 迷路自愈; LostError=需重登(配 on_fuse)',
     "at": 'if at("city"): ...                  # 便宜的单帧"我在不在这屏"',
-    "progress": 'while not ctx.stop.is_set():\n    progress("等刷新")          # 长轮询手动打点, 防看门狗误杀\n    sleep(2000)',
+    "progress": 'while not stopped():\n    progress("等刷新")          # 长轮询手动打点, 防看门狗误杀\n    sleep(2000)',
 }
 
-RULES = """<h2>四条铁律</h2>
-<ol>
-<li><b>凡时间皆毫秒</b> — sleep(500)=半秒, timeout=10000=10 秒(各等待命令默认)。</li>
-<li><b>找不到/超时返回 None 或 False, 不抛异常</b> — "没找到"是挂机常态;
-    真故障(窗口没了)由框架绑定层兜底自动重开/熔断。</li>
-<li><b>F9 停止贯穿一切</b> — sleep 与所有 wait 命令按下即醒即退。</li>
-<li><b>ctx 是逃生舱</b> — 冷门动作(wait_until/retry/swipe_find/read_number/
-    probe/check_points...)与窗口管理走 ctx.ops / ctx.dm / ctx.device。</li>
-</ol>"""
+# ==================== 配置键说明(默认值/类型从 ScaffoldConfig 内省) ====================
+CFG_DESC = {
+    "backend": '目标端: `"window"`(PC 窗口) | `"adb"`(模拟器/真机)',
+    "window_class": 'window 端热键收编的类名过滤串(空=不过滤); 收编到子控件时用它锁定',
+    "display": '截屏通道: `normal` 前台抓屏 | `gdi` 后台 PrintWindow(遮挡可截, 通用首选) | `gdi2` 兼容模式(慢但稳, gdi 截图不刷新时) | `dx` 潜影注入(3D 游戏)',
+    "mouse": '鼠标通道: `normal` SendInput 真鼠标(需前台) | `windows` PostMessage 后台 | `windows2` dx 消息+虚拟光标锁(治点击坐标总偏) | `dx` 潜影',
+    "keypad": '键盘通道: 同 mouse; windows=带扫描码消息按键, 只达读消息循环的窗口, 轮询型游戏免疫→换 `dx`+`hook_keystate`',
+    "fake_active": '绑定后假激活(`EnableFakeActive`): 治"唯独点击无反应"的后台激活门槛, 需 dx 系通道',
+    "hook_keystate": '键状态钩子: 治"键盘消息无反应"(游戏轮询键态不读消息), 需键盘 dx 通道',
+    "hide_module": '注入件模块隐身: 反作弊扫进程模块时开, 需 dx 系通道',
+    "adb_serials": 'adb 端预置序列号列表(空=自动发现)',
+    "hotkey": '启动热键(收编/再按停止): `f1`~`f12` / `pause` / `scrolllock` / `home` / `end` / `insert` / `delete`',
+    "pick_mode": '收编模式: `hover` 拾鼠标下窗口 | `focus` 拾焦点子窗口(模拟器渲染窗)',
+    "human_mouse": '拟人键鼠总开关: true=贝塞尔轨迹+随机停顿+落点抖动; false=瞬移急点(速度优先)',
+    "click_jitter": '点击落点抖动 ±px(0=精确落点); 防每次点同一位的机器人特征',
+    "click_settle_ms": '点击到位停顿区间 ms, 每次取区间随机(人不是节拍器); 调用处可单次覆盖',
+    "max_restarts": '任务异常自动重开次数上限, 连败熔断(可配 on_fuse 自救)',
+    "idle_timeout": '无进展看门狗秒数(0=关): find/wait 命中与点击算进展, 超时停任务留痕',
+    "window_size": '中控台窗口尺寸 [宽, 高]',
+    "left_ratio": '中控台左列(目标表)占宽比例 0~1',
+    "theme": 'ttkbootstrap 主题名(设置弹窗可热切)',
+}
+CFG_GROUPS = [
+    ("目标与通道", ["backend", "window_class", "display", "mouse", "keypad",
+                 "fake_active", "hook_keystate", "hide_module",
+                 "adb_serials", "hotkey", "pick_mode"]),
+    ("拟人键鼠(dsl click/dblclick 的默认)", ["human_mouse", "click_jitter",
+                                      "click_settle_ms"]),
+    ("运行策略与外观", ["max_restarts", "idle_timeout", "window_size",
+                     "left_ratio", "theme"]),
+]
 
-SKELETON = """<h2>task.py 骨架</h2>
-<pre>from icefrag.dsl import *          # 唯一的前缀
+CHANNELS_MD = """
+| 通道 | 取值 | 前台/后台 | 占真键鼠 | 适用与坑 |
+|---|---|---|---|---|
+| display | `normal` | 前台 | — | 直接抓屏, 目标须可见不被遮挡, 最快最稳 |
+| display | `gdi` | **后台** | — | PrintWindow 让窗口自画进内存, 遮挡/被盖都能截, 通用首选 |
+| display | `gdi2` | **后台** | — | 兼容模式慢但稳; `gdi` 截图不刷新/花屏时换它 |
+| display | `dx` | **后台** | — | 潜影注入截帧(OpenGL 已通, D3D9 调试中, 不通明确报错); 需 bin/ 注入件(杀毒报毒是常态) |
+| mouse | `normal` | 前台 | **占** | SendInput 真鼠标, 兼容一切; 跑动时人不能碰机器 |
+| mouse | `windows` | **后台** | 不占 | PostMessage 直投消息; tkinter 自绘类窗口不认(收编前先看清目标) |
+| mouse | `windows2` | **后台** | 不占 | dx 消息鼠标+GetCursorPos 虚拟光标锁, 治"点击坐标总落到真鼠标处"; 需注入件 |
+| mouse | `dx` | **后台** | 不占 | 潜影注入, 检测面最小, 需注入件 |
+| keypad | `normal` | 前台 | **占** | SendInput 真键盘 |
+| keypad | `windows` | **后台** | 不占 | 带扫描码消息按键(旧"死案"系误传, 已实现); 只达读消息循环的窗口, 轮询型游戏(GetAsyncKeyState)免疫 |
+| keypad | `dx` | **后台** | 不占 | 潜影注入, 需注入件; 轮询型目标配 `hook_keystate` |
 
-def main_task(ctx):            # 总入口, 抛异常=本轮失败(框架自动重开)
-    while not ctx.stop.is_set():
-        hit = find_color("CC3333", tol=40)
+选型口诀: 能 `gdi`+`windows` 全后台就全后台(测试/挂机两不误);
+目标不认 PostMessage 点击再退 `normal` 前台; 3D 游戏上 `dx`。
+
+对症速查(设置弹窗"经典组合"同款, 点按即套用):
+
+| 症状 | 配方(display · mouse · keypad) |
+|---|---|
+| 起步首选 · 普通窗口后台 | `gdi · windows · windows` |
+| 移动/键盘正常, 唯独点击全无反应 | `gdi · dx · windows` + `fake_active` |
+| 键盘消息全无反应(轮询型游戏) | `gdi · dx · dx` + `hook_keystate` |
+| 点击坐标总落到真鼠标处/偏移 | `gdi · windows2 · windows` |
+| GDI 截图黑屏/冻结(D3D/GL 渲染) | `dx · dx · windows` |
+"""
+
+# ==================== 散文章节(md 子集: ##/###/段落/-表/```/**/`) ====================
+PROSE = [
+    ("一、快速上手", [
+        ("1. 初始化环境", """
+装一次, 以后所有项目通用:
+
+1. **uv**(包管理器): `pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple`
+   (机器上有 Python 就能用它装; 没有 Python 也行, uv sync 会自动从南大镜像下载);
+2. 已装 **Python 3.12+** 的话 uv 直接用它, 不再下载;
+3. 解压骨架 zip 到任意目录, 比如 `D:\\scripts\\我的挂机`。
+"""),
+        ("2. 安装依赖", """
+在骨架目录执行:
+
+```bash
+uv sync
+```
+
+骨架自带的两个 wheel 在 `libs/` 里(脚手架 + 引擎), 从本地文件安装;
+其余公共依赖自动从清华镜像拉。**全程不需要访问 GitHub。**
+"""),
+        ("3. 测试启动", """
+```bash
+uv run console.py
+```
+
+中控台是**唯一入口**(单开多开都是它): 鼠标**悬停**在目标窗口上按 **F9** →
+收编进表格并启动; 表格行按钮启停; 右侧日志流; 再按 F9 收编下一个即多开。
+adb 端(模拟器/真机)自动发现设备, 无需收编。
+"""),
+    ]),
+    ("二、写你的业务", [
+        ("4. business.py: 参数面板", """
+一个 dataclass = 全部业务参数, `FIELD_META` 声明中文名与控件类型,
+中控台的设置弹窗**自动生成**(用户改值自动落盘 business.yaml):
+
+```python
+from dataclasses import dataclass
+
+FIELD_META = {
+    "attack_wait": ("等击杀秒数", "entry"),
+    "max_kills":   ("最大击杀数(0=无限)", "entry"),
+    "pick_coin":   ("捡金币", "combo:是|否"),
+}
+
+@dataclass
+class BusinessConfig:
+    attack_wait: float = 10.0
+    max_kills: int = 0
+    pick_coin: bool = True
+```
+
+任务里 `ctx.cfg.attack_wait` 取当前值。
+"""),
+        ("5. task.py: 挂机逻辑", """
+`main_task(ctx)` 是任务主体, 顶层命令 `from icefrag.dsl import *` 直接用:
+
+```python
+from icefrag.dsl import *
+
+RED = (51, 51, 204)                                  # #CC3333 的 BGR
+MON_PTS = [Pt(0, 0, RED, 40), Pt(8, 0, RED, 40)]     # 多点找色点阵
+
+def main_task(ctx):
+    while not stopped():                             # 挂机循环自己写
+        hit = find_multi_color((0, 0, 900, 640), MON_PTS)
         if not hit:
-            sleep(1500)
-            continue
-        click(*hit[0])
+            log("场上无怪"); sleep((1000, 2000)); continue
+        click(*hit)
         if wait_color_gone("CC3333-282828", timeout=10000):
-            log("击杀")</pre>
-<p>完整示范: test/auto_farm/task.py(多点找色版自动打怪)。</p>"""
+            log("击杀"); shot("kill")                # 留痕到 logs/shots
+```
+
+**循环自己写, 返回 = 任务完成**: main_task 只被框架调用**一次**, 正常返回即整个
+任务完成收口。要挂机就自己写 `while not stopped(): ...`(F9 叫停循环即退);
+预期内的失败(没找到怪/点击落空)在循环里 try/except 掉——那是业务; 冒出去的异常
+框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。
+
+命令权威表见本手册**三章**(签名由框架内省生成, 与代码不漂移)。
+冷门动作走逃生舱: `ctx.ops`(图色门面)/`ctx.dm`(DmSoft 全量)/`ctx.device`(adb 方言)。
+"""),
+        ("6. 图色素材", """
+素材就是 PNG 和色值, 用你顺手的截图工具做, 放进 `templates/` 即可:
+`wait_pic("xx.png")` / `find_tap("xx.png")` 按文件名引用。
+找色类逻辑不需要素材, 直接写色值(吸管取色, 注意 BGR 序)。
+
+**同源裁材**: 屏幕截图的像素未必等于框架截屏的像素(后台/特殊渲染窗口)。
+从 `logs/shots/` 的留痕截图裁素材——那是框架眼里的画面, 同源必配。
+"""),
+    ]),
+]
+PROSE_LATE = [   # 四~八章(配置表/通道表由内省与常量拼装, 散文在此)
+    ("四、全局配置", [
+        ("总说明", """
+框架自己的配置在 `scaffold.toml`(与业务配置 business.py 分离): 通道/热键/拟人键鼠/
+运行策略/外观。改完重启中控台生效; 下表**默认值与类型由框架内省生成**, 说明为人工
+注释, 键位增删会触发生成器对账报错——不会漂移。"""),
+    ]),
+    ("五、通道选择速查", [
+        ("能力矩阵", CHANNELS_MD),
+    ]),
+    ("六、长跑保障", [
+        ("机制表", """
+| 机制 | 干什么 | 哪里调 |
+|---|---|---|
+| 异常自动重开 | 任务抛异常自动重启, 连败超限熔断躺平 | scaffold.toml `max_restarts` |
+| on_fuse 钩子 | 熔断前给你一次自愈机会(重启游戏/重登), 写 task.py 里 `def on_fuse(ctx) -> bool` | task.py |
+| 无进展看门狗 | 画面卡死没异常也逃不过, 超时自动停+截图 | scaffold.toml `idle_timeout` |
+| FatalError | `raise FatalError("封号")` 致命场景直接停, 不白烧重开次数 | task.py |
+| 截图留痕 | `shot("标签")` 与失败自动截图, 都进 logs/shots | 自动 |
+"""),
+    ]),
+    ("七、打包与升级", [
+        ("打包 exe 发给别人", """
+```bash
+uv run build_exe.py
+```
+
+产出 `dist/<你的名>-v<版本>.zip`: 目标机**零 Python**, 解压即用;
+`templates/` 与 `scaffold.toml` 摆 exe 旁, 用户可自行调参。
+**bin/ 注入件会被 Defender 报毒**, 目标机需把解压目录加入杀毒排除——发给人时记得交代。
+"""),
+        ("升级脚手架", """
+作者在群里发新版时:
+
+1. 下载新的两个 whl, 替换 `libs/` 里的同名旧文件(文件名里的数字就是版本号);
+2. pyproject 里 `[tool.uv.sources]` 两行 path 改成新文件名;
+3. `uv sync`。
+
+不领新版就继续用旧的, 互不影响。
+"""),
+    ]),
+    ("八、常见问题", [
+        ("FAQ", """
+(本章留白, 条目随实战反馈逐条补录。)
+"""),
+    ]),
+]
+
+RULES_MD = ""   # 已删(用户裁定): 铁律内容留在 dsl.py 模块头与 task.py 示例里
 
 
+# ==================== md 子集渲染器(给 chm/html 用) ====================
+def _esc(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _inline(s: str) -> str:
+    s = _esc(s)
+    s = __import__("re").sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    s = __import__("re").sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
+    return s
+
+
+def _md(text: str) -> str:
+    """md 子集 → html: ###/## 标题, - 列表, | 表, ``` 代码块, 段落。"""
+    import re
+
+    def flush_table(rows):
+        cells = [[_inline(c.strip()) for c in r.strip("|").split("|")] for r in rows]
+        head = cells[0]
+        body = cells[1:]
+        trs = "<tr>" + "".join(f"<th>{c}</th>" for c in head) + "</tr>"
+        trs += "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>"
+                       for r in body)
+        return "<table border=1>" + trs + "</table>"
+
+    out, buf, code = [], [], None
+    for line in text.strip().splitlines():
+        if line.strip().startswith("```"):
+            if code is None:
+                code = []
+            else:
+                out.append("<pre>" + _esc("\n".join(code)) + "</pre>")
+                code = None
+            continue
+        if code is not None:
+            code.append(line)
+            continue
+        t = line.strip()
+        if not t:
+            if buf:
+                if buf[0].startswith("|"):
+                    out.append(flush_table(buf))
+                else:
+                    out.append(f"<p>{' '.join(_inline(x) for x in buf)}</p>")
+                buf = []
+            continue
+        if t.startswith("|"):                        # 表行(表头/数据/分隔)
+            if set(t) <= {"|", "-", " ", ":"}:       # 分隔行吃掉
+                continue
+            if buf and not buf[0].startswith("|"):   # 段落被表打断, 先出段落
+                out.append(f"<p>{' '.join(_inline(x) for x in buf)}</p>")
+                buf = []
+            buf.append(t)
+            continue
+        if buf and buf[0].startswith("|"):           # 表结束
+            out.append(flush_table(buf))
+            buf = []
+        if t.startswith("###"):
+            out.append(f"<h3>{_inline(t[3:].strip())}</h3>")
+        elif t.startswith("##"):
+            out.append(f"<h2>{_inline(t[2:].strip())}</h2>")
+        elif t.startswith("- "):
+            out.append(f"<li>{_inline(t[2:])}</li>")
+        elif t[0].isdigit() and t[1:2] == ".":
+            out.append(f"<li>{_inline(t[2:].strip())}</li>")
+        else:
+            buf.append(t)
+    if buf and buf[0].startswith("|"):
+        out.append(flush_table(buf))
+    elif buf:
+        out.append(f"<p>{' '.join(_inline(x) for x in buf)}</p>")
+    if code is not None:
+        out.append("<pre>" + _esc("\n".join(code)) + "</pre>")
+    return "\n".join(out)
+
+
+# ==================== DSL 命令页(内省) ====================
 def _sig(name: str) -> str:
-    fn = getattr(dsl, name)
-    sig = inspect.signature(fn)
-    parts = []
-    for p in sig.parameters.values():
-        d = "" if p.default is inspect.Parameter.empty else f"={p.default!r}"
-        parts.append(f"{p.name}{d}")
+    sig = inspect.signature(getattr(dsl, name))
+    parts = [f"{p.name}{'' if p.default is inspect.Parameter.empty else f'={p.default!r}'}"
+             for p in sig.parameters.values()]
     return f"{name}({', '.join(parts)})"
 
 
 def _brief(name: str) -> str:
-    doc = (getattr(dsl, name).__doc__ or "").strip()
-    return doc.split("\n")[0]
+    return (getattr(dsl, name).__doc__ or "").strip().split("\n")[0]
 
 
 def _doc_extra(name: str) -> str:
@@ -115,7 +371,7 @@ def _doc_extra(name: str) -> str:
     return "<br>".join(l.strip() for l in doc[1:] if l.strip())
 
 
-def _head(title: str) -> str:
+def _head() -> str:
     return ("<html><head><meta charset='utf-8'><style>"
             "body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}"
             "pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;"
@@ -127,7 +383,7 @@ def _head(title: str) -> str:
 def page_html(name: str) -> str:
     ex = EXAMPLES.get(name, "")
     return "\n".join([
-        _head(name), f"<h1><code>{name}</code></h1>",
+        _head(), f"<h1><code>{name}</code></h1>",
         f"<p>{_brief(name)}</p>",
         "<h2>原型</h2>", f"<pre>{_sig(name)}</pre>",
         f"{_doc_extra(name)}" if _doc_extra(name) else "",
@@ -136,104 +392,216 @@ def page_html(name: str) -> str:
     ])
 
 
+# ==================== 配置表(内省默认值) ====================
+def _cfg_default(f) -> str:
+    if f.default is not dataclasses.MISSING:
+        return repr(f.default)
+    return repr(f.default_factory())
+
+
+def cfg_md(group_keys) -> str:
+    fs = {f.name: f for f in dataclasses.fields(scfg.ScaffoldConfig)}
+    rows = ["| 键 | 类型 | 默认 | 说明 |", "|---|---|---|---|"]
+    for k in group_keys:
+        f = fs[k]
+        rows.append(f"| `{k}` | {getattr(f.type, '__name__', f.type)} "
+                    f"| `{_cfg_default(f)}` | "
+                    f"{_cfg_desc_plain(k).replace('|', '&#124;')} |")
+    return "\n".join(rows)
+
+
+def _cfg_desc_plain(k: str) -> str:
+    import re
+    return re.sub(r"`([^`]+)`", r"\1", CFG_DESC[k])
+
+
+def cfg_table_html(group_keys) -> str:
+    fs = {f.name: f for f in dataclasses.fields(scfg.ScaffoldConfig)}
+    rows = ["<table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>"]
+    for k in group_keys:
+        f = fs[k]
+        rows.append(f"<tr><td><code>{k}</code></td>"
+                    f"<td>{getattr(f.type, '__name__', f.type)}</td>"
+                    f"<td><code>{_esc(_cfg_default(f))}</code></td>"
+                    f"<td>{_inline(_cfg_desc_plain(k))}</td></tr>")
+    rows.append("</table>")
+    return "\n".join(rows)
+
+
+# ==================== 生成 ====================
 def build():
+    # -- 对账断言(防漂移) --
+    listed = [n for _, names in GROUPS for n in names]
+    missing = set(dsl.__all__) - set(listed) - {"Pt"}
+    extra = set(listed) - set(dsl.__all__)
+    if missing:
+        sys.exit(f"GROUPS 漏了命令: {missing}")
+    if extra:
+        sys.exit(f"GROUPS 多了不存在的命令: {extra}")
+    fields = {f.name for f in dataclasses.fields(scfg.ScaffoldConfig)}
+    if set(CFG_DESC) != fields:
+        sys.exit(f"CFG_DESC 与 ScaffoldConfig 键不一致: "
+                 f"少写 {fields - set(CFG_DESC)} / 多写 {set(CFG_DESC) - fields}")
+    cfg_keys = [k for _, keys in CFG_GROUPS for k in keys]
+    assert sorted(cfg_keys) == sorted(fields), "CFG_GROUPS 漏配或多配键"
+
     chm_dir = DOCS / "chm"
     if chm_dir.exists():
         shutil.rmtree(chm_dir)
     chm_dir.mkdir(parents=True)
 
-    listed = [n for _, names in GROUPS for n in names]
-    missing = set(dsl.__all__) - set(listed) - {"Pt"}   # Pt=类型 re-export
-    if missing:
-        sys.exit(f"GROUPS 漏了命令: {missing}")
+    # -- 目录树: (章, [ (节, 生成器) ]) ; 节生成器=None 表示该章用 CFG_GROUPS/DSL 组 --
+    # 先落 prose 页
+    page_no = 0
+    pages, toc = {}, []          # pages: 文件名->html; toc: (章, [(节, 文件)])
+    for chap, secs in PROSE + PROSE_LATE:
+        kids = []
+        for sec, body in secs:
+            fn = f"p{page_no}.html"
+            page_no += 1
+            pages[fn] = _head() + f"<h1>{_inline(sec)}</h1>" + _md(body) + "</body></html>"
+            kids.append((sec, fn))
+        if chap == "四、全局配置":                # 配置章: 每组一节(内省表)
+            for gi, (gname, keys) in enumerate(CFG_GROUPS):
+                fn = f"cfg{gi}.html"
+                pages[fn] = (_head() + f"<h1>{_inline(gname)}</h1>"
+                             + cfg_table_html(keys) + "</body></html>")
+                kids.append((gname, fn))
+        toc.append((chap, kids))
 
-    # -- md(AI 权威版) --
-    md = [f"# {TITLE}", "",
-          "> 参数表由 `scripts/build_docs.py` 从 icefrag/dsl.py 签名内省生成,",
-          "> 改 dsl 后重跑脚本(AGENTS.md 规则)。铁律: 凡时间皆毫秒 / 超时返",
-          "> None 不抛 / F9 贯穿 / ctx.dm·ctx.ops·ctx.device 是逃生舱。", ""]
+    # DSL 章: 每命令一页(沿用既有目录形态)
     ids = {}
+    dsl_kids = []
     for ci, (cat, names) in enumerate(GROUPS):
-        md += [f"## {cat}", "", "| 命令 | 原型 | 说明 |", "|---|---|---|"]
+        (chm_dir / f"c{ci}").mkdir(exist_ok=True)
+        grp_kids = []
         for ii, n in enumerate(names):
             ids[n] = f"c{ci}/p{ci}-{ii}"
+            (chm_dir / f"{ids[n]}.html").write_text(page_html(n), encoding="utf-8")
+            grp_kids.append((n, ids[n] + ".html"))
+        dsl_kids.append((cat, grp_kids))
+    toc.insert(2, ("三、DSL 语法", None))          # 特殊: 嵌套组, 单独渲染
+
+    # -- md 产物(骨架 README / AI 权威版) --
+    md = [f"# {TITLE}", "",
+          "> 上手 → 业务 → DSL 语法 → 配置 → 通道 → 保障 → 打包 → FAQ。",
+          "> 命令签名与配置默认值由 `scripts/build_docs.py` 内省生成, 与代码不漂移。", ""]
+    for chap, secs in PROSE:
+        md.append(f"## {chap}")
+        for sec, body in secs:
+            md += [f"### {sec}", body.strip(), ""]
+    md += ["## 三、DSL 语法", ""]
+    for cat, names in GROUPS:
+        md += [f"### {cat}", "", "| 命令 | 原型 | 说明 |", "|---|---|---|"]
+        for n in names:
             md.append(f"| **{n}** | `{_sig(n)}` | {_brief(n)} |")
         md.append("")
-    md += ["## 示例速查", ""]
+    md += ["### 示例速查", ""]
     for _, names in GROUPS:
         for n in names:
             if n in EXAMPLES:
                 md += [f"**{n}**", "```python", EXAMPLES[n], "```", ""]
-    (DOCS / "DSL语法清单.md").write_text("\n".join(md), encoding="utf-8")
+    md += ["## 四、全局配置(scaffold.toml)", ""]
+    for gname, keys in CFG_GROUPS:
+        md += [f"### {gname}", "", cfg_md(keys), ""]
+    for chap, secs in PROSE_LATE[1:]:
+        md.append(f"## {chap}")
+        for sec, body in secs:
+            md += [f"### {sec}", body.strip(), ""]
+    (DOCS / f"{CHM_NAME}.md").write_text("\n".join(md), encoding="utf-8")
 
-    # -- chm 工程页(五段式) --
-    for ci, (cat, names) in enumerate(GROUPS):
-        (chm_dir / f"c{ci}").mkdir(exist_ok=True)
-        for n in names:
-            (chm_dir / f"{ids[n]}.html").write_text(page_html(n), encoding="utf-8")
+    # -- chm 首页(总览) --
+    nav = []
+    for chap, kids in toc:
+        nav.append(f"<p><b>{chap}</b></p>")
+        if kids:
+            nav.append("<p>" + " ".join(
+                f"<a href='{fn}'>{_inline(s)}</a>" for s, fn in kids) + "</p>")
+        else:
+            nav.append("<p>" + " ".join(
+                f"<b>{cat}</b>: " + " ".join(
+                    f"<a href='{f}'>{n}</a>" for n, f in gk) for cat, gk in dsl_kids) + "</p>")
     (chm_dir / "index.html").write_text("\n".join([
-        _head(TITLE), f"<h1>{TITLE}</h1>",
-        "<p>task.py 顶部 <code>from icefrag.dsl import *</code> 后的顶层命令速查。</p>",
-        RULES, SKELETON,
-        "<h2>命令目录</h2>"] + [
-        f"<p><b>{cat}</b>: " + " ".join(
-            f"<a href='{ids[n]}.html'>{n}</a>" for n in names) + "</p>"
-        for cat, names in GROUPS] + ["</body></html>"]), encoding="utf-8")
+        _head(), f"<h1>{TITLE}</h1>",
+        "<p>你拿到的是骨架 zip: 框架管绑定/中控台/热键/异常重开/看门狗/留痕, "
+        "你只写 task.py(逻辑)与 business.py(参数)。全程不需要 GitHub。</p>",
+        "<h2>章节导航</h2>"] + nav + ["</body></html>"]),
+        encoding="utf-8")
+    for fn, html in pages.items():
+        (chm_dir / fn).write_text(html, encoding="utf-8")
 
-    # -- hhc(GBK; OBJECT 单 '>' 收尾, ASCII 内部路径——hhc 是 ANSI 程序) --
+    # -- hhc(GBK; ASCII 内部路径) --
     Q = '"'
     PARAM = "<param name={q}{k}{q} value={q}{v}{q}>"
+
+    def li(name, local, kids_html="", depth=0):
+        pad = "\t" * (depth + 1)
+        return (f"{pad}<LI> <OBJECT type=\"text/sitemap\">\n{pad}"
+                + PARAM.format(q=Q, k="Name", v=name)
+                + (f"\n{pad}" + PARAM.format(q=Q, k="Local", v=local) if local else "")
+                + f"\n{pad}</OBJECT>\n"
+                + (f"{pad}<UL>\n{kids_html}{pad}</UL>\n" if kids_html else ""))
+
     entries = []
-    for ci, (cat, names) in enumerate(GROUPS):
-        kids = "".join(
-            "\t\t<LI> <OBJECT type=\"text/sitemap\">\n\t\t"
-            + PARAM.format(q=Q, k="Name", v=n) + "\n\t\t"
-            + PARAM.format(q=Q, k="Local", v=ids[n] + ".html") + "\n\t\t</OBJECT>\n"
-            for n in names)
-        entries.append(
-            "\t<LI> <OBJECT type=\"text/sitemap\">\n\t\t"
-            + PARAM.format(q=Q, k="Name", v=cat) + "\n\t</OBJECT>\n"
-            + "\t<UL>\n" + kids + "\t</UL>\n")
-    (chm_dir / "dsl.hhc").write_text(
+    for chap, kids in toc:
+        if kids is None:                            # DSL 章: 组→命令 两层
+            inner = "".join(
+                li(cat, "", "".join(li(n, f) for n, f in gk), 2)
+                for cat, gk in dsl_kids)
+            entries.append(li(chap, "index.html#dsl", inner, 1))
+        else:
+            entries.append(li(chap, "", "".join(li(s, f, "", 2) for s, f in kids), 1))
+    (chm_dir / "toc.hhc").write_text(
         '<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">\n<HTML><HEAD></HEAD>'
         '<BODY>\n<UL>\n' + "".join(entries) + "</UL>\n</BODY></HTML>\n",
         encoding="gbk")
     # [WINDOWS] 字段序错一格=面板不创建(imgbot 同款实测坑)
-    (chm_dir / "dsl.hhp").write_text(
-        "[OPTIONS]\nCompatibility=1.1 or later\nCompiled file=dsl_doc.chm\n"
-        "Contents file=dsl.hhc\nDefault topic=index.html\nDefault Window=main\n"
-        "Language=0x804\nTitle=DSL syntax\n\n"
+    (chm_dir / "toc.hhp").write_text(
+        "[OPTIONS]\nCompatibility=1.1 or later\nCompiled file=manual.chm\n"
+        "Contents file=toc.hhc\nDefault topic=index.html\nDefault Window=main\n"
+        f"Language=0x804\nTitle={CHM_NAME}\n\n"
         "[WINDOWS]\n"
-        'main="DSL syntax","dsl.hhc",,"index.html",,,,,,0x20,200,0x1006,'
+        f'main="{CHM_NAME}","toc.hhc",,"index.html",,,,,,0x20,200,0x1006,'
         "[50,30,1000,760],0,0,1,0,0,0,0\n"
-        "\n[FILES]\nindex.html\n", encoding="ascii")
+        "\n[FILES]\nindex.html\n", encoding="gbk")
 
     # -- 编译(便携 hhc; 无则留工程手动编) --
     hhc = Path("D:/tools/hhw/hhc.exe")
     if hhc.exists():
-        subprocess.run([str(hhc), "dsl.hhp"], cwd=chm_dir, capture_output=True)
-        out = chm_dir / "dsl_doc.chm"
+        subprocess.run([str(hhc), "toc.hhp"], cwd=chm_dir, capture_output=True)
+        out = chm_dir / "manual.chm"
         if out.exists():
-            shutil.move(str(out), DOCS / "DSL语法清单.chm")
-            print("  chm :", DOCS / "DSL语法清单.chm")
+            shutil.move(str(out), DOCS / f"{CHM_NAME}.chm")
+            print("  chm :", DOCS / f"{CHM_NAME}.chm")
         else:
             print("  chm 编译失败(hhc 返回非零), 工程保留在 docs/chm")
 
     # -- 单文件 html --
-    single = [_head(TITLE), f"<h1>{TITLE}</h1>", RULES, SKELETON]
-    for cat, names in GROUPS:
-        single.append(f"<h2>{cat}</h2>")
-        single.append("<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>")
-        for n in names:
-            single.append(f"<tr><td><code>{n}</code></td><td><code>{_sig(n)}"
-                          f"</code></td><td>{_brief(n)}</td></tr>")
-        single.append("</table>")
+    single = [_head(), f"<h1>{TITLE}</h1>"]
+    for chap, kids in toc:
+        single.append(f"<h2>{chap}</h2>")
+        if kids is None:
+            for cat, names in GROUPS:
+                single.append(f"<h3>{cat}</h3>")
+                single.append("<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>")
+                single += [f"<tr><td><code>{n}</code></td><td><code>{_sig(n)}"
+                           f"</code></td><td>{_brief(n)}</td></tr>" for n in names]
+                single.append("</table>")
+        else:
+            for c, ss in PROSE + PROSE_LATE:
+                if c != chap:
+                    continue
+                for sec, body in ss:
+                    single += [f"<h3>{_inline(sec)}</h3>", _md(body)]
+            if chap == "四、全局配置":
+                for gname, keys in CFG_GROUPS:
+                    single += [f"<h3>{_inline(gname)}</h3>", cfg_table_html(keys)]
     single.append("</body></html>")
-    (DOCS / "DSL语法清单.html").write_text("\n".join(single), encoding="utf-8")
+    (DOCS / f"{CHM_NAME}.html").write_text("\n".join(single), encoding="utf-8")
 
     print("生成完毕:")
-    print("  md  :", DOCS / "DSL语法清单.md")
-    print("  html:", DOCS / "DSL语法清单.html")
+    print("  md  :", DOCS / f"{CHM_NAME}.md")
+    print("  html:", DOCS / f"{CHM_NAME}.html")
 
 
 if __name__ == "__main__":

@@ -21,13 +21,16 @@ class ScaffoldConfig:
     # 目标与通道
     backend: str = "window"            # "window"(PC 潜影/PrintWindow) | "adb"(模拟器)
     window_class: str = ""             # window 端: 热键收编的类名过滤(空=不过滤)
-    display: str = "normal"            # 通道三件套, 见 docs/接口说明.md 通道模式
+    display: str = "normal"            # 通道三件套, 见 docs/icefrag开发手册.md 通道选择速查
     mouse: str = "normal"
     keypad: str = "normal"
+    fake_active: bool = False          # 绑定后假激活: 治"唯独点击无反应", 需 dx 系通道
+    hook_keystate: bool = False        # 键状态钩子: 治"键盘消息无反应", 需键盘 dx
+    hide_module: bool = False          # 注入件模块隐身: 反作弊扫模块时, 需 dx 系通道
     adb_serials: list[str] = field(default_factory=list)   # adb 端: 预置序列号(空=自动发现)
 
     # 热键收编
-    hotkey_vk: int = 0x78              # F9(VK_F1=0x70 递增)
+    hotkey: str = "f9"                 # 启动热键: f1~f12/pause/scrolllock/home/end/insert/delete
     pick_mode: str = "hover"           # hover=鼠标下窗口 | focus=活动窗口的焦点子窗口
 
     # 拟人键鼠(dsl click/dblclick 的默认, 调用处可单次覆盖)

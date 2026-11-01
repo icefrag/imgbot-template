@@ -1,0 +1,7 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>运行策略与外观</h1><table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>max_restarts</code></td><td>int</td><td><code>3</code></td><td>任务异常自动重开次数上限, 连败熔断(可配 on_fuse 自救)</td></tr>
+<tr><td><code>idle_timeout</code></td><td>int</td><td><code>0</code></td><td>无进展看门狗秒数(0=关): find/wait 命中与点击算进展, 超时停任务留痕</td></tr>
+<tr><td><code>window_size</code></td><td>list[int]</td><td><code>[1280, 800]</code></td><td>中控台窗口尺寸 [宽, 高]</td></tr>
+<tr><td><code>left_ratio</code></td><td>float</td><td><code>0.45</code></td><td>中控台左列(目标表)占宽比例 0~1</td></tr>
+<tr><td><code>theme</code></td><td>str</td><td><code>'darkly'</code></td><td>ttkbootstrap 主题名(设置弹窗可热切)</td></tr>
+</table></body></html>

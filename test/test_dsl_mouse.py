@@ -20,6 +20,9 @@ class FakeMk:                          # 假 dm.keymouse(录制一步式调用)
     def double_click(self, x, y, settle=None):
         self.calls.append(("dbl", x, y, settle))
 
+    def type_text(self, text):
+        self.calls.append(("type", text))
+
 
 class FakeDm:
     def __init__(self, mk):
@@ -66,6 +69,7 @@ class FakeDevice:
         self.taps = []
         self.swipes = []
         self.keys = []
+        self.texts = []
 
     def tap(self, x, y):
         self.taps.append((x, y))
@@ -75,6 +79,9 @@ class FakeDevice:
 
     def keyevent(self, code):
         self.keys.append(code)
+
+    def type_text(self, text):
+        self.texts.append(text)
 
 
 def bind(backend="window", mouse=None):
@@ -188,6 +195,14 @@ def main():
             raise AssertionError(f"{bad!r} 应报错")
         except ValueError:
             pass
+
+    # 13. type_text: window 走绑定通道 keymouse, adb 走 device(输入法广播)
+    ctx = bind()
+    dsl.type_text("你好")
+    assert ctx.dm.keymouse.calls == [("type", "你好")]
+    ctx = bind(backend="adb")
+    dsl.type_text("你好")
+    assert ctx.device.texts == ["你好"]
 
     print("test_dsl_mouse: 全部通过")
 

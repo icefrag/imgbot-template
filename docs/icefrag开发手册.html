@@ -1,0 +1,160 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
+<h1>icefrag 开发手册</h1>
+<h2>一、快速上手</h2>
+<h3>1. 初始化环境</h3>
+<p>装一次, 以后所有项目通用:</p>
+<li><b>uv</b>(包管理器): <code>pip install uv -i https://pypi.tuna.tsinghua.edu.cn/simple</code></li>
+<li>已装 <b>Python 3.12+</b> 的话 uv 直接用它, 不再下载;</li>
+<li>解压骨架 zip 到任意目录, 比如 <code>D:\scripts\我的挂机</code>。</li>
+<p>(机器上有 Python 就能用它装; 没有 Python 也行, uv sync 会自动从南大镜像下载);</p>
+<h3>2. 安装依赖</h3>
+<p>在骨架目录执行:</p>
+<pre>uv sync</pre>
+<p>骨架自带的两个 wheel 在 <code>libs/</code> 里(脚手架 + 引擎), 从本地文件安装; 其余公共依赖自动从清华镜像拉。<b>全程不需要访问 GitHub。</b></p>
+<h3>3. 测试启动</h3>
+<pre>uv run console.py</pre>
+<p>中控台是<b>唯一入口</b>(单开多开都是它): 鼠标<b>悬停</b>在目标窗口上按 <b>F9</b> → 收编进表格并启动; 表格行按钮启停; 右侧日志流; 再按 F9 收编下一个即多开。 adb 端(模拟器/真机)自动发现设备, 无需收编。</p>
+<h2>二、写你的业务</h2>
+<h3>4. business.py: 参数面板</h3>
+<p>一个 dataclass = 全部业务参数, <code>FIELD_META</code> 声明中文名与控件类型, 中控台的设置弹窗<b>自动生成</b>(用户改值自动落盘 business.yaml):</p>
+<pre>from dataclasses import dataclass
+
+FIELD_META = {
+    "attack_wait": ("等击杀秒数", "entry"),
+    "max_kills":   ("最大击杀数(0=无限)", "entry"),
+    "pick_coin":   ("捡金币", "combo:是|否"),
+}
+
+@dataclass
+class BusinessConfig:
+    attack_wait: float = 10.0
+    max_kills: int = 0
+    pick_coin: bool = True</pre>
+<p>任务里 <code>ctx.cfg.attack_wait</code> 取当前值。</p>
+<h3>5. task.py: 挂机逻辑</h3>
+<p><code>main_task(ctx)</code> 是任务主体, 顶层命令 <code>from icefrag.dsl import *</code> 直接用:</p>
+<pre>from icefrag.dsl import *
+
+RED = (51, 51, 204)                                  # #CC3333 的 BGR
+MON_PTS = [Pt(0, 0, RED, 40), Pt(8, 0, RED, 40)]     # 多点找色点阵
+
+def main_task(ctx):
+    while not stopped():                             # 挂机循环自己写
+        hit = find_multi_color((0, 0, 900, 640), MON_PTS)
+        if not hit:
+            log("场上无怪"); sleep((1000, 2000)); continue
+        click(*hit)
+        if wait_color_gone("CC3333-282828", timeout=10000):
+            log("击杀"); shot("kill")                # 留痕到 logs/shots</pre>
+<p><b>循环自己写, 返回 = 任务完成</b>: main_task 只被框架调用<b>一次</b>, 正常返回即整个 任务完成收口。要挂机就自己写 <code>while not stopped(): ...</code>(F9 叫停循环即退); 预期内的失败(没找到怪/点击落空)在循环里 try/except 掉——那是业务; 冒出去的异常 框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。</p>
+<p>命令权威表见本手册<b>三章</b>(签名由框架内省生成, 与代码不漂移)。 冷门动作走逃生舱: <code>ctx.ops</code>(图色门面)/<code>ctx.dm</code>(DmSoft 全量)/<code>ctx.device</code>(adb 方言)。</p>
+<h3>6. 图色素材</h3>
+<p>素材就是 PNG 和色值, 用你顺手的截图工具做, 放进 <code>templates/</code> 即可: <code>wait_pic("xx.png")</code> / <code>find_tap("xx.png")</code> 按文件名引用。 找色类逻辑不需要素材, 直接写色值(吸管取色, 注意 BGR 序)。</p>
+<p><b>同源裁材</b>: 屏幕截图的像素未必等于框架截屏的像素(后台/特殊渲染窗口)。 从 <code>logs/shots/</code> 的留痕截图裁素材——那是框架眼里的画面, 同源必配。</p>
+<h2>三、DSL 语法</h2>
+<h3>键鼠</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>click</code></td><td><code>click(x, y, jitter=None, human=None, settle=None)</code></td><td>点击 (x, y)。默认拟人: 贝塞尔轨迹到位→随机停顿→落点抖动(默认见</td></tr>
+<tr><td><code>dblclick</code></td><td><code>dblclick(x, y, jitter=None, human=None, settle=None)</code></td><td>双击 (x, y), 参数同 click; adb 端两击带 80~120ms 间隔。</td></tr>
+<tr><td><code>drag</code></td><td><code>drag(x1, y1, x2, y2, ms=350)</code></td><td>按住拖拽(列表滚动/滑块): window=按住左键插值拖, adb=原生 swipe。</td></tr>
+<tr><td><code>move</code></td><td><code>move(x, y)</code></td><td>悬停(不点)。adb 端无悬停概念, 报错指路。</td></tr>
+<tr><td><code>key</code></td><td><code>key(s)</code></td><td>按键/组合键: key("enter") / key("ctrl+s")(修饰键 ctrl/alt/shift/win)。</td></tr>
+<tr><td><code>type_text</code></td><td><code>type_text(text)</code></td><td>打字进绑定目标(聊天/搜索/改名框), 中文可: window=当前键鼠通道逐字</td></tr>
+<tr><td><code>sleep</code></td><td><code>sleep(ms)</code></td><td>可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。</td></tr>
+</table>
+<h3>消息</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>log</code></td><td><code>log(text, level='info')</code></td><td>打一条日志(中控台日志面板/终端), level: info|warn|error。</td></tr>
+<tr><td><code>shot</code></td><td><code>shot(tag='')</code></td><td>截当前绑定目标一帧存 logs/shots/(月日_时分秒_目标_标签.png)留痕, 返回路径或 None。</td></tr>
+<tr><td><code>stopped</code></td><td><code>stopped()</code></td><td>F9 停止键按下过吗 —— 挂机循环的退出条件: while not stopped(): ...</td></tr>
+</table>
+<h3>找点(单帧)</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>find_color</code></td><td><code>find_color(color, region=None, tol=0)</code></td><td>区域找全部色块。color="RRGGBB"(偏差给 tol, 或写 "RRGGBB-DRDGDB")。</td></tr>
+<tr><td><code>find_all</code></td><td><code>find_all(pic, region=None, threshold=None)</code></td><td>单帧找全部同类图(列表项/多目标), 近邻去重。</td></tr>
+<tr><td><code>find_multi_color</code></td><td><code>find_multi_color(rect, points, direction=0)</code></td><td>多点找色(大漠 FindMultiColor 对应物): 锚点在 rect 内搜索, 全部相对</td></tr>
+<tr><td><code>exists</code></td><td><code>exists(pic, region=None, threshold=None)</code></td><td></td></tr>
+</table>
+<h3>复合动作</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>find_tap</code></td><td><code>find_tap(pic, region=None, timeout=0, threshold=None, verify=None)</code></td><td>找到就拟人点(贝塞尔轨迹+停顿)。timeout=0 单帧试; verify=点后必须</td></tr>
+<tr><td><code>tap_until_gone</code></td><td><code>tap_until_gone(pic, region=None, timeout=10000, threshold=None)</code></td><td>连点直到图消失(确定/领取类), 返回点击次数; 不出现返回 0。</td></tr>
+</table>
+<h3>等待(超时返 None/False)</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>wait_pic</code></td><td><code>wait_pic(pic, region=None, timeout=10000, threshold=None)</code></td><td>等图出现, 返回 (中心x, 中心y, 分数); 超时自动截图留痕。</td></tr>
+<tr><td><code>wait_pic_any</code></td><td><code>wait_pic_any(pics, region=None, timeout=10000, threshold=None)</code></td><td>等一组模板任一出现, 返回 (名字, x, y, 分数); 超时 None。</td></tr>
+<tr><td><code>wait_pic_gone</code></td><td><code>wait_pic_gone(pic, region=None, timeout=10000, threshold=None)</code></td><td>等图消失(加载页结束判定)。</td></tr>
+<tr><td><code>wait_color</code></td><td><code>wait_color(color, region=None, timeout=10000)</code></td><td>等某色出现(色比图快), 返回 (x, y) 或 None。偏差写进色串:</td></tr>
+<tr><td><code>wait_color_gone</code></td><td><code>wait_color_gone(color, region=None, timeout=10000)</code></td><td>等某色消失(等击杀/等加载), 消失 True / 超时 False。</td></tr>
+<tr><td><code>wait_text</code></td><td><code>wait_text(text, region=None, timeout=10000)</code></td><td>OCR 等文字出现("完成"提示类), 返回 (中心x, 中心y, 相似度) 或 None。</td></tr>
+</table>
+<h3>识字 / 找字(OCR)</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>ocr</code></td><td><code>ocr(region=None, fast=False)</code></td><td>识字: OCR 读区域全文, 行间空格连接("任务名叫什么"用这个)。</td></tr>
+<tr><td><code>ocr_numbers</code></td><td><code>ocr_numbers(region=None)</code></td><td>识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。</td></tr>
+<tr><td><code>find_str</code></td><td><code>find_str(text, region=None, min_ratio=0.7)</code></td><td>找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,</td></tr>
+</table>
+<h3>导航(需 task.py 声明表)</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>go</code></td><td><code>go(name, timeout=120000)</code></td><td>走到目标界面, 图自动带路(BFS)+迷路重定位自愈。到达 True / 超时安静</td></tr>
+<tr><td><code>at</code></td><td><code>at(name)</code></td><td>期望验证: 当前是否在指定界面(单帧一张锚点, 高频便宜; 迷路判别用 go)。</td></tr>
+</table>
+<h3>看门狗</h3>
+<table><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>progress</code></td><td><code>progress(note='')</code></td><td>手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。</td></tr>
+</table>
+<h2>四、全局配置</h2>
+<h3>总说明</h3>
+<p>框架自己的配置在 <code>scaffold.toml</code>(与业务配置 business.py 分离): 通道/热键/拟人键鼠/ 运行策略/外观。改完重启中控台生效; 下表<b>默认值与类型由框架内省生成</b>, 说明为人工 注释, 键位增删会触发生成器对账报错——不会漂移。</p>
+<h3>目标与通道</h3>
+<table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>backend</code></td><td>str</td><td><code>'window'</code></td><td>目标端: "window"(PC 窗口) | "adb"(模拟器/真机)</td></tr>
+<tr><td><code>window_class</code></td><td>str</td><td><code>''</code></td><td>window 端热键收编的类名过滤串(空=不过滤); 收编到子控件时用它锁定</td></tr>
+<tr><td><code>display</code></td><td>str</td><td><code>'normal'</code></td><td>截屏通道: normal 前台抓屏 | gdi 后台 PrintWindow(遮挡可截, 通用首选) | gdi2 兼容模式(慢但稳, gdi 截图不刷新时) | dx 潜影注入(3D 游戏)</td></tr>
+<tr><td><code>mouse</code></td><td>str</td><td><code>'normal'</code></td><td>鼠标通道: normal SendInput 真鼠标(需前台) | windows PostMessage 后台 | windows2 dx 消息+虚拟光标锁(治点击坐标总偏) | dx 潜影</td></tr>
+<tr><td><code>keypad</code></td><td>str</td><td><code>'normal'</code></td><td>键盘通道: 同 mouse; windows=带扫描码消息按键, 只达读消息循环的窗口, 轮询型游戏免疫→换 dx+hook_keystate</td></tr>
+<tr><td><code>fake_active</code></td><td>bool</td><td><code>False</code></td><td>绑定后假激活(EnableFakeActive): 治"唯独点击无反应"的后台激活门槛, 需 dx 系通道</td></tr>
+<tr><td><code>hook_keystate</code></td><td>bool</td><td><code>False</code></td><td>键状态钩子: 治"键盘消息无反应"(游戏轮询键态不读消息), 需键盘 dx 通道</td></tr>
+<tr><td><code>hide_module</code></td><td>bool</td><td><code>False</code></td><td>注入件模块隐身: 反作弊扫进程模块时开, 需 dx 系通道</td></tr>
+<tr><td><code>adb_serials</code></td><td>list[str]</td><td><code>[]</code></td><td>adb 端预置序列号列表(空=自动发现)</td></tr>
+<tr><td><code>hotkey</code></td><td>str</td><td><code>'f9'</code></td><td>启动热键(收编/再按停止): f1~f12 / pause / scrolllock / home / end / insert / delete</td></tr>
+<tr><td><code>pick_mode</code></td><td>str</td><td><code>'hover'</code></td><td>收编模式: hover 拾鼠标下窗口 | focus 拾焦点子窗口(模拟器渲染窗)</td></tr>
+</table>
+<h3>拟人键鼠(dsl click/dblclick 的默认)</h3>
+<table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>human_mouse</code></td><td>bool</td><td><code>True</code></td><td>拟人键鼠总开关: true=贝塞尔轨迹+随机停顿+落点抖动; false=瞬移急点(速度优先)</td></tr>
+<tr><td><code>click_jitter</code></td><td>int</td><td><code>3</code></td><td>点击落点抖动 ±px(0=精确落点); 防每次点同一位的机器人特征</td></tr>
+<tr><td><code>click_settle_ms</code></td><td>list[int]</td><td><code>[60, 160]</code></td><td>点击到位停顿区间 ms, 每次取区间随机(人不是节拍器); 调用处可单次覆盖</td></tr>
+</table>
+<h3>运行策略与外观</h3>
+<table border=1><tr><th>键</th><th>类型</th><th>默认</th><th>说明</th></tr>
+<tr><td><code>max_restarts</code></td><td>int</td><td><code>3</code></td><td>任务异常自动重开次数上限, 连败熔断(可配 on_fuse 自救)</td></tr>
+<tr><td><code>idle_timeout</code></td><td>int</td><td><code>0</code></td><td>无进展看门狗秒数(0=关): find/wait 命中与点击算进展, 超时停任务留痕</td></tr>
+<tr><td><code>window_size</code></td><td>list[int]</td><td><code>[1280, 800]</code></td><td>中控台窗口尺寸 [宽, 高]</td></tr>
+<tr><td><code>left_ratio</code></td><td>float</td><td><code>0.45</code></td><td>中控台左列(目标表)占宽比例 0~1</td></tr>
+<tr><td><code>theme</code></td><td>str</td><td><code>'darkly'</code></td><td>ttkbootstrap 主题名(设置弹窗可热切)</td></tr>
+</table>
+<h2>五、通道选择速查</h2>
+<h3>能力矩阵</h3>
+<table border=1><tr><th>通道</th><th>取值</th><th>前台/后台</th><th>占真键鼠</th><th>适用与坑</th></tr><tr><td>display</td><td><code>normal</code></td><td>前台</td><td>—</td><td>直接抓屏, 目标须可见不被遮挡, 最快最稳</td></tr><tr><td>display</td><td><code>gdi</code></td><td><b>后台</b></td><td>—</td><td>PrintWindow 让窗口自画进内存, 遮挡/被盖都能截, 通用首选</td></tr><tr><td>display</td><td><code>gdi2</code></td><td><b>后台</b></td><td>—</td><td>兼容模式慢但稳; <code>gdi</code> 截图不刷新/花屏时换它</td></tr><tr><td>display</td><td><code>dx</code></td><td><b>后台</b></td><td>—</td><td>潜影注入截帧(OpenGL 已通, D3D9 调试中, 不通明确报错); 需 bin/ 注入件(杀毒报毒是常态)</td></tr><tr><td>mouse</td><td><code>normal</code></td><td>前台</td><td><b>占</b></td><td>SendInput 真鼠标, 兼容一切; 跑动时人不能碰机器</td></tr><tr><td>mouse</td><td><code>windows</code></td><td><b>后台</b></td><td>不占</td><td>PostMessage 直投消息; tkinter 自绘类窗口不认(收编前先看清目标)</td></tr><tr><td>mouse</td><td><code>windows2</code></td><td><b>后台</b></td><td>不占</td><td>dx 消息鼠标+GetCursorPos 虚拟光标锁, 治"点击坐标总落到真鼠标处"; 需注入件</td></tr><tr><td>mouse</td><td><code>dx</code></td><td><b>后台</b></td><td>不占</td><td>潜影注入, 检测面最小, 需注入件</td></tr><tr><td>keypad</td><td><code>normal</code></td><td>前台</td><td><b>占</b></td><td>SendInput 真键盘</td></tr><tr><td>keypad</td><td><code>windows</code></td><td><b>后台</b></td><td>不占</td><td>带扫描码消息按键(旧"死案"系误传, 已实现); 只达读消息循环的窗口, 轮询型游戏(GetAsyncKeyState)免疫</td></tr><tr><td>keypad</td><td><code>dx</code></td><td><b>后台</b></td><td>不占</td><td>潜影注入, 需注入件; 轮询型目标配 <code>hook_keystate</code></td></tr></table>
+<p>选型口诀: 能 <code>gdi</code>+<code>windows</code> 全后台就全后台(测试/挂机两不误); 目标不认 PostMessage 点击再退 <code>normal</code> 前台; 3D 游戏上 <code>dx</code>。</p>
+<p>对症速查(设置弹窗"经典组合"同款, 点按即套用):</p>
+<table border=1><tr><th>症状</th><th>配方(display · mouse · keypad)</th></tr><tr><td>起步首选 · 普通窗口后台</td><td><code>gdi · windows · windows</code></td></tr><tr><td>移动/键盘正常, 唯独点击全无反应</td><td><code>gdi · dx · windows</code> + <code>fake_active</code></td></tr><tr><td>键盘消息全无反应(轮询型游戏)</td><td><code>gdi · dx · dx</code> + <code>hook_keystate</code></td></tr><tr><td>点击坐标总落到真鼠标处/偏移</td><td><code>gdi · windows2 · windows</code></td></tr><tr><td>GDI 截图黑屏/冻结(D3D/GL 渲染)</td><td><code>dx · dx · windows</code></td></tr></table>
+<h2>六、长跑保障</h2>
+<h3>机制表</h3>
+<table border=1><tr><th>机制</th><th>干什么</th><th>哪里调</th></tr><tr><td>异常自动重开</td><td>任务抛异常自动重启, 连败超限熔断躺平</td><td>scaffold.toml <code>max_restarts</code></td></tr><tr><td>on_fuse 钩子</td><td>熔断前给你一次自愈机会(重启游戏/重登), 写 task.py 里 <code>def on_fuse(ctx) -&gt; bool</code></td><td>task.py</td></tr><tr><td>无进展看门狗</td><td>画面卡死没异常也逃不过, 超时自动停+截图</td><td>scaffold.toml <code>idle_timeout</code></td></tr><tr><td>FatalError</td><td><code>raise FatalError("封号")</code> 致命场景直接停, 不白烧重开次数</td><td>task.py</td></tr><tr><td>截图留痕</td><td><code>shot("标签")</code> 与失败自动截图, 都进 logs/shots</td><td>自动</td></tr></table>
+<h2>七、打包与升级</h2>
+<h3>打包 exe 发给别人</h3>
+<pre>uv run build_exe.py</pre>
+<p>产出 <code>dist/&lt;你的名&gt;-v&lt;版本&gt;.zip</code>: 目标机<b>零 Python</b>, 解压即用; <code>templates/</code> 与 <code>scaffold.toml</code> 摆 exe 旁, 用户可自行调参。 <b>bin/ 注入件会被 Defender 报毒</b>, 目标机需把解压目录加入杀毒排除——发给人时记得交代。</p>
+<h3>升级脚手架</h3>
+<p>作者在群里发新版时:</p>
+<li>下载新的两个 whl, 替换 <code>libs/</code> 里的同名旧文件(文件名里的数字就是版本号);</li>
+<li>pyproject 里 <code>[tool.uv.sources]</code> 两行 path 改成新文件名;</li>
+<li><code>uv sync</code>。</li>
+<p>不领新版就继续用旧的, 互不影响。</p>
+<h2>八、常见问题</h2>
+<h3>FAQ</h3>
+<p>(本章留白, 条目随实战反馈逐条补录。)</p>
+</body></html>

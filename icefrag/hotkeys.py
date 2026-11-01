@@ -10,6 +10,32 @@ import threading
 
 u32 = ctypes.windll.user32
 
+# 经典启动热键表: scaffold.toml 字符串(hotkey = "f9")与设置弹窗下拉共用
+HOTKEYS = {f"f{i}": 0x70 + (i - 1) for i in range(1, 13)}   # F1~F12
+HOTKEYS.update({"pause": 0x13, "scrolllock": 0x91,          # 挂机两神器(游戏不占)
+                "home": 0x24, "end": 0x23,
+                "insert": 0x2D, "delete": 0x2E})
+
+
+def hotkey_vk(name: str) -> int:
+    """键名 → 虚拟键码; 未收录的名字抛 ValueError(可选项见 HOTKEYS)。"""
+    try:
+        return HOTKEYS[name.strip().lower()]
+    except KeyError:
+        raise ValueError(f"热键名未收录(可选 {list(HOTKEYS)}): {name!r}") from None
+
+
+def hotkey_label(name: str) -> str:
+    """键名 → 界面显示(F9 / Pause / ScrollLock...)。"""
+    n = name.strip().lower()
+    return {"scrolllock": "ScrollLock"}.get(
+        n, n.upper() if n.startswith("f") else n.capitalize())
+
+
+def hotkey_choices() -> list[str]:
+    """设置弹窗下拉的显示项(HOTKEYS 顺序)。"""
+    return [hotkey_label(k) for k in HOTKEYS]
+
 
 class HotkeyListener:
     """后台线程轮询热键; 触发时调 on_hotkey()(在热键线程, UI 回调自行 marshal)。"""

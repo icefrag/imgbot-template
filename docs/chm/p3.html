@@ -1,0 +1,15 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>4. business.py: 参数面板</h1><p>一个 dataclass = 全部业务参数, <code>FIELD_META</code> 声明中文名与控件类型, 中控台的设置弹窗<b>自动生成</b>(用户改值自动落盘 business.yaml):</p>
+<pre>from dataclasses import dataclass
+
+FIELD_META = {
+    "attack_wait": ("等击杀秒数", "entry"),
+    "max_kills":   ("最大击杀数(0=无限)", "entry"),
+    "pick_coin":   ("捡金币", "combo:是|否"),
+}
+
+@dataclass
+class BusinessConfig:
+    attack_wait: float = 10.0
+    max_kills: int = 0
+    pick_coin: bool = True</pre>
+<p>任务里 <code>ctx.cfg.attack_wait</code> 取当前值。</p></body></html>

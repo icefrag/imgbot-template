@@ -15,6 +15,8 @@
         dblclick(x, y[, ...])  双击(同 click 参数)
         drag(x1, y1, x2, y2, ms)   按住拖拽(列表滚动/滑块)
         move(x, y)   key("ctrl+s")   sleep(ms)|(lo, hi 随机)
+        type_text(text)  打字进绑定目标(中文可, 聊天/搜索框; 老ANSI窗口打不进字
+        走 ctx.dm.SendString(hwnd, text, ime=True))
   消息  log(text)   shot(tag)   stopped() -> bool(F9 叫停了吗, 挂机循环退出条件)
   找点  find_color(color, region, tol) -> [(x, y), ...]    单帧找全部色块
         find_all(pic) -> [(x, y), ...]                      单帧找全部同类图
@@ -73,7 +75,8 @@ def _ctx():
 
 
 __all__ = [
-    "click", "dblclick", "drag", "move", "key", "sleep", "stopped", "log", "shot",
+    "click", "dblclick", "drag", "move", "key", "type_text", "sleep",
+    "stopped", "log", "shot",
     "find_color", "find_all", "find_multi_color", "exists",
     "find_tap", "tap_until_gone",
     "wait_pic", "wait_pic_any", "wait_pic_gone",
@@ -191,6 +194,18 @@ def key(s: str):
         if code is None:
             raise ValueError(f"adb 键名未收录(可加进 ADB_KEYS): {main!r}")
         ctx.device.keyevent(code)
+
+
+def type_text(text: str):
+    """打字进绑定目标(聊天/搜索/改名框), 中文可: window=当前键鼠通道逐字
+    注入, adb=ADBKeyboard 广播(首次自动装输入法)。老 ANSI 窗口(龙之谷类)
+    WM_CHAR 打不进字, 走 ctx.dm.SendString(hwnd, text, ime=True)。"""
+    ctx = _ctx()
+    ctx.progress()
+    if ctx.backend == "window":
+        ctx.dm.keymouse.type_text(text)
+    else:
+        ctx.device.type_text(text)
 
 
 # ================= 消息 =================

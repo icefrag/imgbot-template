@@ -26,6 +26,7 @@ NotImplementedError), dsl.key 的组织逻辑在 test/test_dsl_mouse.py 离线�
   12_multi_color  find_multi_color(怪物) + click 连点 + wait_pic_any(胜利)
   13_lamp_color   wait_color/wait_color_gone(竞技场灯) + ocr_numbers 差
   14_background   后台证明(纯蓝盖子遮死游戏: 截屏仍见游戏+遮挡点击切屏)
+  15_type_text    type_text(打字行 WM_CHAR 直投 + OCR 回读; 不经 KeyPress 死案)
 """
 import subprocess
 import sys
@@ -60,6 +61,7 @@ MONSTER = (350, 60, 430, 140)
 LAMP_BOX = (490, 70, 550, 130)
 BOX_C, TIP = (110, 220), (480, 104, 620, 136)
 DRAG_OK = (390, 280, 510, 320)
+TYPED = (60, 340, 420, 374)               # 打字行(WM_CHAR 显示区)
 BTN_BATTLE, BTN_SHOP = (490, 320), (490, 380)
 MON_PTS = None                      # setup 从实况像素采样
 TG = ROOT / "templates" / "test_game"
@@ -426,6 +428,22 @@ def c14_background_covered():
         u32.DestroyWindow(cover)
         _pump(0.1)
     to_main()
+
+
+@case
+def c15_type_text():
+    """type_text: windows 键盘通道 KeyPress 虽是引擎死案, 打字走 keymouse
+    直投 WM_CHAR 不经该路径 —— 靶子打字行收字重绘, OCR 回读验证。
+    (不用 wait_text: 打字行整行一个 token, 2 字短词比例匹配命中不了)"""
+    to_main()
+    dsl.type_text("你好挂机")
+    got, end = "", time.monotonic() + 8.0            # 收字重绘+OCR 抖动留余量
+    while time.monotonic() < end:
+        got = dsl.ocr(region=TYPED)
+        if "你好挂机" in got:
+            break
+        time.sleep(0.3)
+    assert "你好挂机" in got, f"打字行没读到: {got!r}"
 
 
 def main():

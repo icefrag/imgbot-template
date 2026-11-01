@@ -7,7 +7,7 @@ pyproject 的 hatch artifacts 配置保证)。
 
 产物(用户解压 → 改 name → uv sync → 写 task/business, 全程零 GitHub):
   skeleton/
-  ├── main.py / console.py / build_exe.py   薄入口(设 IMGBOT_TEMPLATE_ROOT)
+  ├── console.py / build_exe.py             薄入口(设 IMGBOT_TEMPLATE_ROOT)
   ├── business.py / task.py                 出厂示例, 用户覆写
   ├── scaffold.toml / pyproject.toml        配置(依赖指向 libs/ 的 whl)
   ├── libs/icefrag-*.whl + imgbot-*.whl     脚手架(开源) + 引擎(现开源, ②后闭源)
@@ -93,7 +93,7 @@ def main() -> int:
     (stage / "templates").mkdir()
     (stage / "logs").mkdir()
 
-    for f in ("main.py", "console.py", "build_exe.py", "business.py",
+    for f in ("console.py", "build_exe.py", "business.py",
               "task.py", "scaffold.toml"):
         shutil.copy2(ROOT / f, stage / f)
     shutil.copy2(ROOT / "skel" / "AGENTS.md", stage / "AGENTS.md")  # AI 军规(工具自动发现)

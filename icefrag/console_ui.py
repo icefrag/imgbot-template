@@ -21,12 +21,140 @@ import winsound
 from . import ROOT
 from . import backends
 from . import settings
-from .hotkeys import HotkeyListener
+from .hotkeys import HotkeyListener, hotkey_choices, hotkey_label, hotkey_vk
 from .worker import Worker
 
 _LOG_COLORS = {"info": "#d0d0d0", "warn": "#e6b84c", "error": "#e05c5c"}
 _ROW_TAGS = {"running": "green", "error": "red", "done": "blue", "idle": "gray"}
 _ALIAS_PATH = ROOT / "aliases.json"
+
+# 绑定项悬浮讲解(? 卡片): 通道=取值三列表(values), 开关=症状处方(lines);
+# 与 docs/icefrag开发手册.md 通道章同源, 改动两边同步
+_BIND_HELP = {
+    "display": ("图色通道 —— 截图从哪来", [
+        ("normal", "前台截屏裁剪", "目标必须前台可见"),
+        ("gdi", "PrintWindow 后台截图", "默认首选, GDI 窗口通吃"),
+        ("gdi2", "兼容模式, 慢但稳", "gdi 截图不刷新时换它"),
+        ("dx", "注入件截帧(OpenGL 已通)", "GDI 截不到的游戏; D3D9 调试中, 不通会明确报错"),
+    ], None),
+    "mouse": ("鼠标通道 —— 点击怎么发出去", [
+        ("windows", "宿主侧 PostMessage", "门槛低, 普通窗口首选"),
+        ("dx", "注入件进程内合成", "消息要过游戏输入检查的目标"),
+        ("windows2", "dx 消息 + 虚拟光标锁", "点击总落到真鼠标处/偏移"),
+        ("normal", "SendInput 真事件", "最后手段, 动真光标且须前台"),
+    ], None),
+    "keypad": ("键盘通道 —— 按键怎么发出去", [
+        ("windows", "PostMessage 消息键盘(带扫描码)", "默认首选; 轮询型游戏免疫→换 dx"),
+        ("dx", "注入件合成", "配合键状态钩子治无反应"),
+        ("normal", "SendInput 真事件", "最后手段, 动真键盘"),
+    ], None),
+    "fake_active": ("后台假激活 —— 治什么病", None, [
+        ("说明", "让后台窗口被游戏视为激活, 绕过点击处理里的激活门槛"),
+        ("症状", "移动/键盘都正常, 唯独点击全无反应"),
+        ("要求", "任一 dx 系通道(注入件在场)才生效, 否则跳过并留日志"),
+    ]),
+    "hook_keystate": ("键状态钩子 —— 治什么病", None, [
+        ("说明", "钩住 GetAsyncKeyState。游戏靠轮询按键状态、不收消息时才需要"),
+        ("症状", "键盘消息全无反应(连键都打不出)"),
+        ("要求", "键盘通道选 dx(注入件在场), 否则跳过并留日志"),
+    ]),
+    "hide_module": ("隐藏模块 —— 治什么病", None, [
+        ("说明", "把注入件从目标进程的模块列表里藏起来"),
+        ("场景", "反作弊扫进程模块列表时; 绑定后调一次即可"),
+        ("要求", "需 dx 系通道(注入件在场), 否则跳过并留日志"),
+        ("平时", "保持「否」"),
+    ]),
+}
+
+# 经典组合: 症状 → 配方(设置弹窗一键套用; 顺序=伤害递增, 能用上面的别用下面的)
+_CLASSIC_COMBOS = [
+    ("起步首选 · 普通窗口后台挂机",
+     {"display": "gdi", "mouse": "windows", "keypad": "windows"}),
+    ("移动/键盘正常, 唯独点击全无反应",
+     {"display": "gdi", "mouse": "dx", "keypad": "windows", "fake_active": True}),
+    ("键盘消息全无反应(消息免疫)",
+     {"display": "gdi", "mouse": "dx", "keypad": "dx", "hook_keystate": True}),
+    ("点击坐标总落到真鼠标处/偏移",
+     {"display": "gdi", "mouse": "windows2", "keypad": "windows"}),
+    ("GDI 截图黑屏/冻结(D3D/GL 游戏)",
+     {"display": "dx", "mouse": "dx", "keypad": "windows"}),
+]
+
+_SWITCH_NAMES = {"fake_active": "假激活", "hook_keystate": "键状态钩子"}
+
+
+def _combo_recipe(combo: dict) -> str:
+    """组合的配方串: 通道三件套 + 点名的开关。"""
+    parts = [combo["display"], combo["mouse"], combo["keypad"]]
+    parts += [n for k, n in _SWITCH_NAMES.items() if combo.get(k)]
+    return " · ".join(parts)
+
+
+class _HoverCard:
+    """? 号悬浮讲解卡: 悬停弹出, 移入可细读, 移开收起。"""
+
+    def __init__(self, anchor, title, values=None, lines=None):
+        self._anchor = anchor
+        self._title, self._values, self._lines = title, values, lines
+        self._tip = None
+        self._after = None
+        anchor.bind("<Enter>", self._schedule)
+        anchor.bind("<Leave>", self._hide)
+
+    def _schedule(self, _=None):
+        if self._after:
+            self._anchor.after_cancel(self._after)
+        if self._tip is None:
+            self._after = self._anchor.after(300, self._show)
+
+    def _show(self):
+        self._after = None
+        if self._tip is not None:
+            return
+        tip = tk.Toplevel(self._anchor)
+        tip.overrideredirect(True)
+        tip.attributes("-topmost", True)
+        f = ttk.Frame(tip, padding=10)
+        f.pack(fill="both", expand=True)
+        ttk.Label(f, text=self._title, font=("Microsoft YaHei UI", 10, "bold")
+                  ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        r = 1
+        for v, d, s in self._values or []:
+            ttk.Label(f, text=v, bootstyle="success").grid(
+                row=r, column=0, sticky="w", padx=(0, 12))
+            ttk.Label(f, text=d).grid(row=r, column=1, sticky="w", padx=(0, 12))
+            ttk.Label(f, text=s, bootstyle="secondary").grid(
+                row=r, column=2, sticky="w")
+            r += 1
+        for k, text in self._lines or []:
+            ttk.Label(f, text=k, bootstyle="success").grid(
+                row=r, column=0, sticky="w", padx=(0, 12))
+            ttk.Label(f, text=text).grid(
+                row=r, column=1, columnspan=2, sticky="w")
+            r += 1
+        tip.update_idletasks()
+        x = self._anchor.winfo_rootx() - 8
+        y = self._anchor.winfo_rooty() + self._anchor.winfo_height() + 6
+        tip.geometry(f"+{x}+{y}")
+        self._tip = tip
+        tip.bind("<Enter>", self._keep)
+        tip.bind("<Leave>", self._hide)
+
+    def _keep(self, _=None):               # 移入卡片: 取消退隐, 容许细读
+        if self._after:
+            self._anchor.after_cancel(self._after)
+            self._after = None
+
+    def _hide(self, _=None):
+        self._keep()
+        if self._tip is not None:
+            self._after = self._anchor.after(200, self._destroy)
+
+    def _destroy(self):
+        self._after = None
+        if self._tip is not None:
+            tip, self._tip = self._tip, None
+            tip.destroy()
 
 
 def _load_aliases() -> dict:
@@ -50,7 +178,7 @@ class Console:
         self._toast_win: tk.Toplevel | None = None
         self.aliases: dict = _load_aliases()        # hwnd→别名(改名持久化)
         self.workers: dict[str, Worker] = {}      # ident → Worker
-        self.hotkey = HotkeyListener(self.gcfg.hotkey_vk, self.on_hotkey)
+        self.hotkey = HotkeyListener(hotkey_vk(self.gcfg.hotkey), self.on_hotkey)
         self._build()
         self.hotkey.start()
         self.root.after(100, self._pump_log)
@@ -69,7 +197,7 @@ class Console:
         ttk.Button(top, text="⚙ 设置", command=self._open_settings,
                    bootstyle="secondary-outline").pack(side="left")
         self.hotkey_lbl = ttk.Label(
-            top, text=f"热键: F{self.gcfg.hotkey_vk - 0x6F} 收编/停止  ●监听中")
+            top, text=f"热键: {hotkey_label(self.gcfg.hotkey)} 收编/停止  ●监听中")
         self.hotkey_lbl.pack(side="left", padx=12)
         self.status_lbl = ttk.Label(top, text="0 运行")
         self.status_lbl.pack(side="right")
@@ -290,23 +418,44 @@ class Console:
         nb.pack(fill="both", expand=True, padx=8, pady=8)
         entries = {}
         if not getattr(sys, "frozen", False):
-            # Tab1: 脚手架层——弹窗只留常用项; 通道枚举/经典分辨率全下拉,
+            # Tab1: 脚手架层——弹窗只留常用项; 通道/开关全下拉 + ? 悬浮讲解,
             # 冷门项(pick_mode/max_restarts)直接改 scaffold.toml
             f1 = ttk.Frame(nb, padding=10)
             nb.add(f1, text="脚手架")
-            disp_chans = ["normal", "gdi", "windows", "dx"]   # gdi 仅图色
-            mk_chans = ["normal", "windows", "dx"]            # 键鼠无 gdi
+            disp_chans = ["normal", "gdi", "gdi2", "dx"]     # gdi 族仅图色
+            mouse_chans = ["normal", "windows", "windows2", "dx"]
+            kp_chans = ["normal", "windows", "dx"]           # 键盘无 windows2(鼠标光标锁专属)
+            yn = ["否", "是"]
             sizes = ["[960, 600]", "[1280, 800]", "[1600, 900]", "[1920, 1080]"]
             themes = ["darkly", "superhero", "cyborg", "solar",
                       "cosmo", "flatly", "litera", "minty"]
-            for row, (key, label, choices) in enumerate([
-                    ("display", "图色通道", disp_chans),
-                    ("mouse", "鼠标通道", mk_chans),
-                    ("keypad", "键盘通道", mk_chans),
-                    ("theme", "主题", themes), ("window_size", "窗体尺寸", sizes),
-                    ("left_ratio", "左列宽度比例", None)]):
-                ttk.Label(f1, text=label).grid(row=row, column=0, sticky="w", pady=2)
-                var = tk.StringVar(value=str(getattr(self.gcfg, key)))
+            rows = [
+                ("hotkey", "启动热键", hotkey_choices()),
+                ("display", "图色通道", disp_chans),
+                ("mouse", "鼠标通道", mouse_chans),
+                ("keypad", "键盘通道", kp_chans),
+                ("fake_active", "后台假激活", yn),
+                ("hook_keystate", "键状态钩子", yn),
+                ("hide_module", "隐藏模块", yn),
+                ("theme", "主题", themes), ("window_size", "窗体尺寸", sizes),
+                ("left_ratio", "左列宽度比例", None)]
+            for row, (key, label, choices) in enumerate(rows):
+                cell = ttk.Frame(f1)
+                cell.grid(row=row, column=0, sticky="w", pady=2)
+                ttk.Label(cell, text=label).pack(side="left")
+                if key in _BIND_HELP:
+                    q = ttk.Label(cell, text="?", cursor="question_arrow",
+                                  bootstyle="info")
+                    q.pack(side="left", padx=(4, 0))
+                    _HoverCard(q, *_BIND_HELP[key])
+                cur = getattr(self.gcfg, key)
+                if isinstance(cur, bool):
+                    init = "是" if cur else "否"
+                elif key == "hotkey":
+                    init = hotkey_label(cur)
+                else:
+                    init = str(cur)
+                var = tk.StringVar(value=init)
                 if choices:
                     ttk.Combobox(f1, textvariable=var, values=choices,
                                  state="readonly", width=26).grid(
@@ -315,6 +464,27 @@ class Console:
                     ttk.Entry(f1, textvariable=var, width=28).grid(
                         row=row, column=1, pady=2)
                 entries[key] = var
+            # 经典组合: 症状对号入座, 点一条即把上方下拉调成该配方(保存才写回)
+            box = ttk.Labelframe(f1, text="经典组合 · 点一条即套用", padding=(8, 6))
+            box.grid(row=len(rows), column=0, columnspan=2, sticky="we", pady=(10, 0))
+            status = ttk.Label(box, text="对号入座: 症状在哪条, 点哪条",
+                               bootstyle="secondary")
+
+            def _apply_combo(name, combo):
+                entries["display"].set(combo["display"])
+                entries["mouse"].set(combo["mouse"])
+                entries["keypad"].set(combo["keypad"])
+                entries["fake_active"].set("是" if combo.get("fake_active") else "否")
+                entries["hook_keystate"].set("是" if combo.get("hook_keystate") else "否")
+                entries["hide_module"].set("否")
+                status.configure(text=f"已套用: {name} · 点保存才写回")
+
+            for i, (name, combo) in enumerate(_CLASSIC_COMBOS):
+                ttk.Button(box, text=f"{name}   →   {_combo_recipe(combo)}",
+                           bootstyle="secondary-outline",
+                           command=lambda n=name, c=combo: _apply_combo(n, c)
+                           ).grid(row=i, column=0, sticky="we", pady=1)
+            status.grid(row=len(_CLASSIC_COMBOS), column=0, sticky="w", pady=(4, 0))
         # Tab2: 业务层(读 FIELD_META 自动生成; kind: "entry" | "combo:a|b|c";
         # bool 字段自动转"是/否"下拉, 不让用户输 true/false)
         f2 = ttk.Frame(nb, padding=10)
@@ -345,11 +515,18 @@ class Console:
 
         def apply():
             for k, var in entries.items():
-                setattr(self.gcfg, k, _coerce(getattr(self.gcfg, k), var.get()))
+                v = var.get().lower() if k == "hotkey" else var.get()
+                setattr(self.gcfg, k, _coerce(getattr(self.gcfg, k), v))
             settings.save(self.gcfg)
-            try:                          # 热应用: 主题/尺寸/比例立即生效
+            try:                          # 热应用: 主题/尺寸/比例/热键立即生效
                 self.root.style.theme_use(self.gcfg.theme)
                 self._relayout()
+                self.hotkey.stop()        # 热重绑: 停旧监听, 新键立刻上岗
+                self.hotkey = HotkeyListener(hotkey_vk(self.gcfg.hotkey),
+                                             self.on_hotkey)
+                self.hotkey.start()
+                self.hotkey_lbl.config(
+                    text=f"热键: {hotkey_label(self.gcfg.hotkey)} 收编/停止  ●监听中")
             except Exception:
                 pass
             for k, var in biz_vars.items():

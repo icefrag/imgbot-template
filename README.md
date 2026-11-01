@@ -22,7 +22,7 @@
 |---|---|---|---|
 | 引擎层 | imgbot 库 + 潜影注入件 | wheel(`imgbot-*.whl`, bin/ 已随包; ②后闭源编译) | 随骨架 zip 分发 |
 | 脚手架层 | 本仓 `icefrag/`(worker/中控台/DSL/设置/bootstrap/build) | 开源纯源码 wheel(`icefrag-*.whl`) | 同上 |
-| 薄项目 | 薄入口四件套 + task/business + 素材 | 骨架 zip 解压即开发 | 脚本开发者 |
+| 薄项目 | 薄入口(console/build_exe) + task/business + 素材 | 骨架 zip 解压即开发 | 脚本开发者 |
 
 三类人三种吃法,同一个薄项目形态:
 
@@ -78,14 +78,14 @@ windows 键盘通道(引擎历史死案, 离线覆盖)。
 uv run scripts/make_skeleton.py     # → dist/skeleton-v0.1.0.zip
 ```
 
-zip 内容: 薄入口(main/console/build_exe)+ business/task 示例 + scaffold.toml +
+zip 内容: 薄入口(console/build_exe)+ business/task 示例 + scaffold.toml +
 pyproject(依赖指向 libs/ 双 whl)+ tools/pick_probe + docs/DSL语法清单 + README(使用手册)。
 
 - **发给别人**: zip 直接发群,对方解压 → 改 pyproject 的 name → `uv sync` → 写 task/business;
 - **自用新项目**: 解压后把 pyproject 的两条 sources 改成上面的直链写法,即变成 dogfood 项目。
 
 **发版铁律**: zip 发出前,干净目录解压 → `uv sync` → 冒烟通过(自测已按此走通:
-wheel 装入 venv、注入件在包内、薄入口可导入)。
+wheel 装入 venv、注入件在包内、入口可导入)。
 
 ## 发版流(每次对外发骨架 zip)
 
@@ -107,7 +107,6 @@ uv run scripts/make_skeleton.py     # 内含两仓 uv build + 组装 + 压 zip
 
 ```
 ├── icefrag/             # 框架包(开源, uv build 出 wheel)
-│   ├── bootstrap.py     #   薄入口运行时: run_single/run_console
 │   ├── worker.py        #   生命周期: 绑定→ctx→任务→异常重开→收口
 │   ├── backends.py      #   adb / window 两端(发现/绑定/ctx 组装)
 │   ├── hotkeys.py       #   F9 热键收编(hover/focus 拾取)
