@@ -202,6 +202,104 @@ def list_adb_serials(cfg) -> list[str]:
     return adb_rows(list_devices(), cfg.adb_serials)
 
 
+def adb_label(model: str, serial: str) -> str:
+    """行标题: "型号 · 尾号"(emulator-5554→5544, 127.0.0.1:7555→7555);
+    型号空退回原 serial。多开同型号靠尾号区分。"""
+    tail = serial.split(":")[-1]
+    if tail.startswith("emulator-"):
+        tail = tail[len("emulator-"):]
+    return f"{model} · {tail}" if model else serial
+
+
+def adb_device_label(serial: str) -> str:
+    """设备行标题(getprop ro.product.model; 拿不到退回 serial)。"""
+    from imgbot.adb import AdbDevice
+    try:
+        model = AdbDevice(serial).shell("getprop", "ro.product.model").strip()
+    except Exception:
+        model = ""
+    return adb_label(model, serial)
+
+
+# ---- 模拟器品牌识别(宿主进程侧; adb 属性被伪装成真机, 不可靠) ----
+# (进程名片段小写 → 品牌) 顺序即优先级; VBox 底座(雷电/夜神同源)由前端进程定品牌
+_EMU_FRONT = [
+    ("dnplayer", "雷电模拟器"), ("ldplayer", "雷电模拟器"),
+    ("ld9box", "雷电模拟器"), ("ldbox", "雷电模拟器"),
+    ("mumu", "MuMu模拟器"),
+    ("bignox", "夜神模拟器"), ("nox", "夜神模拟器"),
+    ("memu", "逍遥模拟器"),
+    ("hd-player", "BlueStacks"), ("bluestacks", "BlueStacks"),
+    ("qemu", "安卓AVD"),
+]
+
+
+def _adb_port(serial: str) -> int:
+    """serial → adb 监听端口(emulator-5554 控制台+1=5555; 127.0.0.1:7555 即
+    7555; USB 真机无本地端口返回 0)。"""
+    if serial.startswith("emulator-"):
+        try:
+            return int(serial.split("-", 1)[1]) + 1
+        except ValueError:
+            return 0
+    if ":" in serial:
+        try:
+            return int(serial.rsplit(":", 1)[1])
+        except ValueError:
+            return 0
+    return 0
+
+
+def _brand_from_owners(owners: set[str], fronts: list[str]) -> str:
+    """端口宿主进程名集合 → 品牌; VBox 底座看唯一前端品牌, 认不出空串。"""
+    for n in owners:
+        for frag, brand in _EMU_FRONT:
+            if frag in n:
+                return brand
+    if any("vbox" in n for n in owners) and len(fronts) == 1:
+        return fronts[0]
+    return ""
+
+
+def adb_labels(serials: list[str]) -> dict[str, str]:
+    """一批设备的行标题: 宿主进程认模拟器品牌(雷电/MuMu/夜神/…),
+    认不出(真机/他牌)退 型号·尾号。netstat+tasklist 各一次摊给全表。"""
+    import subprocess as sp
+    ports: dict[int, set[int]] = {}
+    pids: dict[int, str] = {}
+    try:
+        # netstat/tasklist 输出为系统 ANSI 码页(中文机=GBK), UTF-8 模式下
+        # text=True 会炸在读线程 —— 显式 mbcs + 忽略坏字节
+        net = sp.run(["netstat", "-ano", "-p", "tcp"], capture_output=True,
+                     encoding="mbcs", errors="ignore").stdout or ""
+        for ln in net.splitlines():
+            p = ln.split()
+            if len(p) >= 5 and p[3] == "LISTENING" and ":" in p[1]:
+                try:
+                    ports.setdefault(int(p[1].rsplit(":", 1)[1]),
+                                     set()).add(int(p[4]))
+                except ValueError:
+                    pass
+        csv = sp.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True,
+                     encoding="mbcs", errors="ignore").stdout or ""
+        for ln in csv.splitlines():
+            f = [x.strip('"') for x in ln.split('","')]
+            if len(f) >= 2 and f[1].isdigit():
+                pids[int(f[1])] = f[0].lower()
+    except Exception:
+        pass                       # 识别失败不影响入表, 走型号回退
+    fronts = sorted({b for n in pids.values()
+                     for frag, b in _EMU_FRONT if frag in n})
+    labels = {}
+    for s in serials:
+        port = _adb_port(s)
+        owners = ({pids.get(p, "") for p in ports.get(port, ())}
+                  if port else set())
+        brand = _brand_from_owners(owners, fronts)
+        labels[s] = adb_label(brand, s) if brand else adb_device_label(s)
+    return labels
+
+
 def bind_adb_backend(serial: str, scaffold, business_cfg, log, stop) -> Ctx:
     """adb 端绑定: AdbTarget(魔神线, 天然后台) + Ops 鸭子帧源(图色 DSL 同构)。"""
     from imgbot.ops import Ops

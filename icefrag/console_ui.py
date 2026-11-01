@@ -284,15 +284,13 @@ class Console:
         except Exception as e:
             self.logq.put(("adb", f"设备扫描失败: {e}(adb 在 PATH 吗?)", "error"))
             return
-        new = 0
-        for s in serials:
-            if s in self.workers:
-                continue
+        fresh = [s for s in serials if s not in self.workers]
+        labels = backends.adb_labels(fresh)     # 品牌(雷电/MuMu/…)·尾号, 真机退型号
+        for s in fresh:
             self.workers[s] = Worker(s, "adb", self.gcfg,
                                      self.business_cfg_value, self.logq,
-                                     self.aliases.get(s) or s)
-            new += 1
-        self.logq.put(("adb", f"扫描: 在线 {len(serials)} 台, 新入表 {new}"
+                                     self.aliases.get(s) or labels.get(s, s))
+        self.logq.put(("adb", f"扫描: 在线 {len(serials)} 台, 新入表 {len(fresh)}"
                              "(表格按行启动)", "info"))
 
     def _toggle_selected(self):
@@ -582,9 +580,13 @@ class Console:
 
     @property
     def business_cfg_value(self):
-        """当前业务配置(共享给新 Worker 的模板值)。"""
+        """当前业务配置(共享给新 Worker 的模板值)。
+
+        从 business.yaml 载入: 不读盘则每次启动都是默认值——设置弹窗显示"丢配置",
+        且一次保存会把没动的字段连带写回默认值。"""
         if not hasattr(self, "_biz"):
-            self._biz = self.business_mod.BusinessConfig()
+            from .store import load as biz_load
+            self._biz = biz_load(self.business_mod.BusinessConfig)
         return self._biz
 
     def _on_close(self):
