@@ -10,6 +10,7 @@ import ctypes
 import ctypes.wintypes
 import json
 import queue
+import re
 import sys
 import threading
 import time
@@ -216,9 +217,14 @@ class Console:
         self._relayout()
 
         cols = ("name", "state", "info", "preview")
+        self._snap_col = self.gcfg.backend == "adb"   # 行📸: 存盘截图(发问题现场)
+        col_specs = [("name", "窗口标题", 150), ("state", "状态", 80),
+                     ("info", "最近信息", 205), ("preview", "预览", 46)]
+        if self._snap_col:
+            cols += ("snap",)
+            col_specs.append(("snap", "截图", 46))
         self.tree = ttk.Treeview(self.left_f, columns=cols, show="headings", height=12)
-        for cid, text, wd in (("name", "窗口标题", 150), ("state", "状态", 80),
-                              ("info", "最近信息", 205), ("preview", "预览", 46)):
+        for cid, text, wd in col_specs:
             self.tree.heading(cid, text=text)
             self.tree.column(cid, width=wd, anchor="w")
         for tag, color in _ROW_TAGS.items():
@@ -226,17 +232,26 @@ class Console:
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<Double-1>", self._on_double)
         self.tree.bind("<Button-1>", self._on_cell_click)
+        self.tree.bind("<Control-a>", self._select_all)
 
-        btns = ttk.Frame(self.left_f)
-        btns.pack(fill="x", pady=4)
+        btns = ttk.Frame(self.left_f)              # 行操作: 吃全部选中行
+        btns.pack(fill="x", pady=(4, 0))
         ttk.Button(btns, text="启动", width=8, bootstyle="success",
                    command=self._start_selected).pack(side="left", padx=2)
         ttk.Button(btns, text="停止", width=8, bootstyle="danger-outline",
                    command=self._stop_selected).pack(side="left", padx=2)
         ttk.Button(btns, text="移除", width=8, bootstyle="secondary-outline",
                    command=self._remove_selected).pack(side="left", padx=2)
+        ttk.Label(btns, text="Ctrl/Shift 多选 · Ctrl+A 全选",
+                  bootstyle="secondary").pack(side="right")
+        btns2 = ttk.Frame(self.left_f)             # 全量操作
+        btns2.pack(fill="x", pady=(4, 4))
+        ttk.Button(btns2, text="全部启动", width=10, bootstyle="success-outline",
+                   command=self._start_all).pack(side="left", padx=2)
+        ttk.Button(btns2, text="全部停止", width=10, bootstyle="danger-outline",
+                   command=self._stop_all).pack(side="left", padx=2)
         if self.gcfg.backend == "adb":           # 补捞后开的模拟器(不占热键)
-            ttk.Button(btns, text="扫描设备", width=10, bootstyle="info-outline",
+            ttk.Button(btns2, text="扫描设备", width=10, bootstyle="info-outline",
                        command=self.scan_adb_devices).pack(side="left", padx=2)
 
         self.logbox = tk.Text(self.right_f, bg="#1b1f24", fg="#d0d0d0", state="disabled",
@@ -309,11 +324,15 @@ class Console:
             self._toggle(self.workers.get(row))
 
     def _on_cell_click(self, e):
-        if (self.tree.identify_region(e.x, e.y) == "cell"
-                and self.tree.identify_column(e.x) == "#4"):
+        if (self.tree.identify_region(e.x, e.y) == "cell"):
+            col = self.tree.identify_column(e.x)
             row = self.tree.identify_row(e.y)
-            if row:
+            if not row:
+                return
+            if col == "#4":
                 self._open_preview(row)
+            elif col == "#5" and self._snap_col:
+                self._snap_row(row)
 
     def _rename(self, ident: str):
         w = self.workers.get(ident)
@@ -332,23 +351,90 @@ class Console:
         if w:
             _Preview(self.root, w)
 
+    def _snap_row(self, ident: str):
+        """行📸: 即时截设备画面存 logs/shots(独立 adb 截屏, 任务卡死也能截),
+        路径进日志——发问题现场给作者看。后台线程跑, 不冻 UI。"""
+        if not self.workers.get(ident):
+            return
+
+        def work():
+            try:
+                from imgbot.target import AdbTarget
+                stem = re.sub(r'[\\/:*?"<>|]', "_", ident)
+                p = backends.SHOTS / (f"{time.strftime('%m%d_%H%M%S')}"
+                                      f"_{stem}_snap.png")
+                w_px, h_px = AdbTarget(ident).save_screenshot(p)
+                self.logq.put((ident, f"截图已存: {p}({w_px}x{h_px})", "info"))
+            except Exception as e:
+                self.logq.put((ident, f"截图失败: {e!r}", "error"))
+
+        threading.Thread(target=work, daemon=True).start()
+
     def _start_selected(self):
-        sel = self.tree.selection()
-        if sel:
-            self._toggle(self.workers.get(sel[0]), force_on=True)
+        ws = [w for w in (self.workers.get(i) for i in self.tree.selection()) if w]
+        for w in ws:
+            if not w.alive:
+                w.start()
+        self._batch_notify("start", "启动", ws)
 
     def _stop_selected(self):
-        sel = self.tree.selection()
-        if sel:
-            self._toggle(self.workers.get(sel[0]), force_off=True)
+        ws = [w for w in (self.workers.get(i) for i in self.tree.selection()) if w]
+        for w in ws:
+            if w.alive:
+                w.stop(join_s=0.0)       # 不 join: 多行停止不冻结 UI
+        self._batch_notify("stop", "停止", ws)
 
     def _remove_selected(self):
-        sel = self.tree.selection()
-        if sel:
-            w = self.workers.pop(sel[0], None)
+        for ident in self.tree.selection():
+            w = self.workers.pop(ident, None)
             if w:
-                w.stop()
-            self.tree.delete(sel[0])
+                w.stop(join_s=0.0)
+            self.tree.delete(ident)
+
+    def _select_all(self, _e=None):
+        """Ctrl+A 全选(配合 启动/停止/移除 吃全部选中行)。"""
+        self.tree.selection_set(self.tree.get_children())
+        return "break"
+
+    def _start_all(self):
+        """全部启动: 逐台错峰 1.5s(root.after 链, 防冷启动并发打满机器)。"""
+        todo = [w for w in self.workers.values() if not w.alive]
+        if not todo:
+            return
+        n = 0
+
+        def one(i):
+            nonlocal n
+            if i >= len(todo):
+                self._show_notify("start", f"全部启动完成: {n} 台")
+                self.logq.put(("中控台", f"全部启动完成: {n} 台", "info"))
+                return
+            w = todo[i]
+            if not w.alive:
+                w.start()
+                n += 1
+            self.root.after(1500, lambda: one(i + 1))
+
+        one(0)
+
+    def _stop_all(self):
+        """全部停止: 立即发停止信号(线程各自收口), 汇总一条通知。"""
+        running = [w for w in self.workers.values() if w.alive]
+        if not running:
+            return
+        for w in running:
+            w.stop(join_s=0.0)
+        self._batch_notify("stop", "停止", running)
+        self.logq.put(("中控台", f"全部停止: {len(running)} 台", "info"))
+
+    def _batch_notify(self, kind: str, verb: str, ws):
+        """批量操作只弹一条汇总(单台照旧逐台弹)。"""
+        if not ws:
+            return
+        if len(ws) == 1:
+            self._show_notify(kind, ws[0].title or ws[0].ident)
+        else:
+            self._show_notify(kind, f"已{verb} {len(ws)} 台")
 
     def _toggle(self, w: Worker, force_on=False, force_off=False):
         if w is None:
@@ -368,6 +454,8 @@ class Console:
                       "error" if "异常" in w.state else
                       "done" if w.state == "已停止" else "idle")
             vals = (w.title or w.ident, w.state, w.last_info, "📷")
+            if self._snap_col:
+                vals += ("📸",)
             if self.tree.exists(ident):
                 self.tree.item(ident, values=vals, tags=(coarse,))
             else:
