@@ -1,0 +1,19 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>大漠直通 · 窗口</h1><p>同名同参透传 imgbot DmSoft(仅 window 端, adb 端调用报错指路)。签名由生成器内省生成, 与代码不漂移。</p><table border=1><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>FindWindow</code></td><td><code>FindWindow(class_name, title='')</code></td><td>—</td></tr>
+<tr><td><code>FindWindowEx</code></td><td><code>FindWindowEx(parent, class_name, title='')</code></td><td>—</td></tr>
+<tr><td><code>GetWindowClass</code></td><td><code>GetWindowClass(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>GetWindowTitle</code></td><td><code>GetWindowTitle(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>GetWindowRect</code></td><td><code>GetWindowRect(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>GetClientRect</code></td><td><code>GetClientRect(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>GetClientSize</code></td><td><code>GetClientSize(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>ClientToScreen</code></td><td><code>ClientToScreen(hwnd, x, y)</code></td><td>—</td></tr>
+<tr><td><code>ScreenToClient</code></td><td><code>ScreenToClient(hwnd, x, y)</code></td><td>—</td></tr>
+<tr><td><code>MoveWindow</code></td><td><code>MoveWindow(hwnd, x, y)</code></td><td>—</td></tr>
+<tr><td><code>SetWindowState</code></td><td><code>SetWindowState(hwnd, flag)</code></td><td>窗口状态操作(大漠 0-14 口径: 0 关闭/1 激活/2 最小化/3 最小化+释放内存/</td></tr>
+<tr><td><code>EnumWindow</code></td><td><code>EnumWindow(parent, title, class_name, filter_)</code></td><td>枚举窗口(parent=0 顶层, 否则枚举子窗口), 返回 "hwnd,hwnd,..."(无匹配空串)。</td></tr>
+<tr><td><code>EnumWindowByProcess</code></td><td><code>EnumWindowByProcess(process_name, title, class_name, filter_)</code></td><td>按进程名(如 "game.exe")枚举其所有窗口, 语义同 EnumWindow。</td></tr>
+<tr><td><code>EnumWindowByProcessId</code></td><td><code>EnumWindowByProcessId(pid, title, class_name, filter_)</code></td><td>按进程 ID 枚举窗口, 语义同 EnumWindow。</td></tr>
+<tr><td><code>GetWindowProcessId</code></td><td><code>GetWindowProcessId(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>GetWindowProcessPath</code></td><td><code>GetWindowProcessPath(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>GetForegroundWindow</code></td><td><code>GetForegroundWindow()</code></td><td>—</td></tr>
+</table></body></html>

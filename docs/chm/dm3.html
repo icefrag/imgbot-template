@@ -1,0 +1,21 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>大漠直通 · 绑定与环境</h1><p>同名同参透传 imgbot DmSoft(仅 window 端, adb 端调用报错指路)。签名由生成器内省生成, 与代码不漂移。</p><table border=1><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>BindWindow</code></td><td><code>BindWindow(hwnd, display, mouse, keypad, mode=0)</code></td><td>绑定窗口并选通道。返回 1 成功 / 0 失败(大漠语义)。</td></tr>
+<tr><td><code>UnBindWindow</code></td><td><code>UnBindWindow()</code></td><td>解绑并释放资源(大漠: 脚本退出时调用)。</td></tr>
+<tr><td><code>ForceUnBindWindow</code></td><td><code>ForceUnBindWindow(hwnd)</code></td><td>强制解绑指定窗口(宿主侧: 直接解绑本对象 dx; 他进程绑定不在范围)。</td></tr>
+<tr><td><code>GetBindWindow</code></td><td><code>GetBindWindow()</code></td><td>当前绑定的窗口句柄, 未绑定返回 0。</td></tr>
+<tr><td><code>IsBind</code></td><td><code>IsBind(hwnd)</code></td><td>—</td></tr>
+<tr><td><code>SwitchBindWindow</code></td><td><code>SwitchBindWindow(hwnd)</code></td><td>不解绑切换同进程窗口。</td></tr>
+<tr><td><code>EnableBind</code></td><td><code>EnableBind(enable)</code></td><td>—</td></tr>
+<tr><td><code>EnableFakeActive</code></td><td><code>EnableFakeActive(enable)</code></td><td>后台假激活(dx 通道)。</td></tr>
+<tr><td><code>EnableRealMouse</code></td><td><code>EnableRealMouse(enable, mousedelay, mousestep)</code></td><td>未实现: 拟人轨迹不在 MoveTo 层(那会连累拖拽插值), 在一步式点击里</td></tr>
+<tr><td><code>EnableRealKeypad</code></td><td><code>EnableRealKeypad(enable)</code></td><td>—</td></tr>
+<tr><td><code>EnableMouseSync</code></td><td><code>EnableMouseSync(enable, time_out)</code></td><td>—</td></tr>
+<tr><td><code>EnableKeypadSync</code></td><td><code>EnableKeypadSync(enable, time_out)</code></td><td>—</td></tr>
+<tr><td><code>EnableSpeedDx</code></td><td><code>EnableSpeedDx(enable)</code></td><td>—</td></tr>
+<tr><td><code>EnableIme</code></td><td><code>EnableIme(enable)</code></td><td>—</td></tr>
+<tr><td><code>EnableKeypadMsg</code></td><td><code>EnableKeypadMsg(enable)</code></td><td>—</td></tr>
+<tr><td><code>EnableMouseMsg</code></td><td><code>EnableMouseMsg(enable)</code></td><td>—</td></tr>
+<tr><td><code>EnableKeypadPatch</code></td><td><code>EnableKeypadPatch(enable)</code></td><td>—</td></tr>
+<tr><td><code>SetDisplayDelay</code></td><td><code>SetDisplayDelay(ms)</code></td><td>—</td></tr>
+<tr><td><code>SetDisplayRefreshDelay</code></td><td><code>SetDisplayRefreshDelay(ms)</code></td><td>—</td></tr>
+</table></body></html>

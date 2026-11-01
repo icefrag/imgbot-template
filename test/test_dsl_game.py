@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DSL 全动词 E2E 回归: icefrag靶场(test/dummy_game.py, 纯 Win32 靶) + gdi/windows/windows
+"""命令 E2E 回归: icefrag靶场(test/dummy_game.py, 纯 Win32 靶) + gdi/windows/windows
 全后台通道(截屏/键鼠都不动真桌面, 可遮挡跑)。
 
 跑法:
@@ -7,26 +7,28 @@
   uv run test/test_dsl_game.py find_tap nav  # 只跑名字含子串的用例(回归定位用)
 
 模板不入库: 每轮 setup 从靶子实况截图自裁(同源裁材, 免 DPI/字体差异)。
-key() 不在本集: windows 键盘通道是引擎历史死案(KeyPress 抛
-NotImplementedError), dsl.key 的组织逻辑在 test/test_dsl_mouse.py 离线覆盖。
+裸键鼠(键序/组合键)与直通代理的离线组织逻辑在 test/test_dsl_mouse.py。
 
-用例 → 动词映射(改哪个动词就跑哪条):
+用例 → 命令映射(改哪个命令就跑哪条):
   00_smoke        sleep/stopped/log/shot/progress + 绑定 sanity
   01_click        click(坐标+参数)
   02_dblclick     dblclick + ocr_numbers(分数差)
   03_drag         drag(滑块拖到最右)
-  04_move         move(悬停区)
-  05_find_color   find_color(金币色, 区域限定)
-  06_find_all     find_all + tap_until_gone + exists
+  04_move_dm      大漠直通 MoveTo(悬停区 WM_MOUSEMOVE)
+  05_find_color_dm 大漠直通 FindColor(金币色, 区域限定)
+  06_find_all     find_all + tap_until_gone + 直通 FindPic(存在性)
   07_find_tap     find_tap 单帧
   08_find_tap_ver find_tap verify 正/负
   09_wait_pic     wait_pic + wait_pic_gone(切屏过场)
   10_ocr          ocr(屏名)
   11_nav          go/at(三屏导航图, BFS 两跳)
-  12_multi_color  find_multi_color(怪物) + click 连点 + wait_pic_any(胜利)
+  12_multi_color_dm 大漠直通 FindMultiColor(Pt→色串手转示范) + click 连点
+                  + wait_pic_any(胜利)
   13_lamp_color   wait_color/wait_color_gone(竞技场灯) + ocr_numbers 差
   14_background   后台证明(纯蓝盖子遮死游戏: 截屏仍见游戏+遮挡点击切屏)
-  15_type_text    type_text(打字行 WM_CHAR 直投 + OCR 回读; 不经 KeyPress 死案)
+  15_send_string  大漠直通 SendString(WM_CHAR 直投打字行 + OCR 回读)
+  16_window_dm    大漠直通窗口族: FindWindow/GetWindowTitle/GetClientSize/
+                  EnumWindowByProcessId
 """
 import subprocess
 import sys
@@ -95,12 +97,18 @@ def wait_screen(name, timeout=6.0):
         f"没等到 {name} 屏"
 
 
+def _pic_here(pic):
+    """单帧存在性: 直通 FindPic(未找到返回 (-1,-1,-1))。"""
+    idx, _x, _y = dsl.FindPic(0, 0, 640, 480, pic)
+    return idx >= 0
+
+
 def to_main():
     for _ in range(3):
-        if dsl.exists("test_game/anchor_main.png"):
+        if _pic_here("test_game/anchor_main.png"):
             return
         dsl.find_tap("test_game/btn_back.png", timeout=4000)
-    assert dsl.exists("test_game/anchor_main.png"), "回不到主界面"
+    assert _pic_here("test_game/anchor_main.png"), "回不到主界面"
 
 
 def sample_pts(fa):
@@ -109,6 +117,11 @@ def sample_pts(fa):
     e = tuple(int(v) for v in fa[87, 374])          # 眼心(374,87) 黑
     m = tuple(int(v) for v in fa[124, 388])         # 嘴心(388,124) 黄
     return [Pt(0, 0, a, 30), Pt(-26, 17, e, 40), Pt(-12, 54, m, 40)]
+
+
+def _dm_color(bgr, tol):
+    """BGR 元组+容差 → 大漠色串 "RRGGBB-TTTTTT"(直通 FindMultiColor 用)。"""
+    return f"{bgr[2]:02X}{bgr[1]:02X}{bgr[0]:02X}-{tol:02X}{tol:02X}{tol:02X}"
 
 
 def _wait_pixel(box, bgr, tol=60, timeout=6.0):
@@ -239,18 +252,19 @@ def c03_drag():
 
 
 @case
-def c04_move():
-    dsl.move(550, 80)                               # 悬停区内
+def c04_move_dm():
+    dsl.MoveTo(550, 80)                               # 直通悬停(WM_MOUSEMOVE)
     time.sleep(0.4)
     tip = crop(frame(), *TIP)
     assert (tip.max(axis=2) < 120).any(), "悬停后没出现提示字"
 
 
 @case
-def c05_find_color():
-    hits = dsl.find_color("FFBE00", region=(40, 60, 240, 120))
-    xs = {min(COIN_XS, key=lambda cx: abs(cx - x)) for x, _y in hits}
-    assert xs == set(COIN_XS), f"三枚金币应各有命中: {xs}"
+def c05_find_color_dm():
+    # FindColor 返首个命中像素(左上扫描序), 不是色块圆心 —— 大漠语义
+    x, y = dsl.FindColor(40, 60, 240, 120, "FFBE00", 1.0)
+    assert any((x - cx) ** 2 + (y - COIN_Y) ** 2 <= 18 ** 2 for cx in COIN_XS), \
+        f"金币色应命中金币圆内(圆心±18): ({x}, {y})"
 
 
 @case
@@ -259,7 +273,7 @@ def c06_find_all_tap_until_gone():
     assert len(hits) == 3, f"应有 3 枚金币, 实得 {len(hits)}"
     n = dsl.tap_until_gone("test_game/coin.png", timeout=10000)
     assert n == 3, f"连点数应为 3, 实得 {n}"
-    assert not dsl.exists("test_game/coin.png"), "金币应已点光"
+    assert not _pic_here("test_game/coin.png"), "金币应已点光"
 
 
 @case
@@ -327,16 +341,21 @@ def c11_nav():
 
 
 @case
-def c12_multi_color_victory():
+def c12_multi_color_dm():
     ensure_nav()
     assert dsl.go("arena", timeout=20000)
-    hit = dsl.find_multi_color((340, 50, 440, 150), MON_PTS)
-    assert hit and MONSTER[0] <= hit[0] <= MONSTER[2] \
-        and MONSTER[1] <= hit[1] <= MONSTER[3], f"多点找色应命中怪物: {hit}"
-    assert dsl.find_multi_color((0, 150, 300, 480), MON_PTS) is None, \
+    # Pt 点阵 → dm 色串/offset 串手转(直通 FindMultiColor 的日常姿势)
+    p0 = MON_PTS[0]
+    first = _dm_color(p0.col, p0.tol)
+    offsets = ",".join(f"{p.dx}|{p.dy}|{_dm_color(p.col, p.tol)}"
+                       for p in MON_PTS[1:])
+    x, y = dsl.FindMultiColor(340, 50, 440, 150, first, offsets)
+    assert MONSTER[0] <= x <= MONSTER[2] and MONSTER[1] <= y <= MONSTER[3], \
+        f"多点找色应命中怪物: ({x}, {y})"
+    assert dsl.FindMultiColor(0, 150, 300, 480, first, offsets) == (-1, -1), \
         "空区域不应命中"
     for _ in range(3):                              # 连点 3 次击杀
-        dsl.click(*hit, jitter=0, settle=60)
+        dsl.click(x, y, jitter=0, settle=60)
         time.sleep(0.3)
     got = dsl.wait_pic_any(["test_game/victory.png"], timeout=5000)
     assert got and got[0] == "test_game/victory.png", f"胜利结算: {got}"
@@ -420,7 +439,7 @@ def c14_background_covered():
         blue = ((f[:, :, 0].astype(int) > 240) & (f[:, :, 1] < 15)
                 & (f[:, :, 2] < 15)).sum()
         assert blue == 0, f"截屏混入盖子蓝 {blue} 像素 —— 不是真后台截屏!"
-        assert dsl.exists("test_game/btn_battle.png"), "遮挡下模板匹配失效"
+        assert _pic_here("test_game/btn_battle.png"), "遮挡下模板匹配失效"
         dsl.click(*BTN_BATTLE, jitter=0, settle=60)  # 遮挡下点击切屏
         assert dsl.wait_pic("test_game/anchor_arena.png", timeout=6000), \
             "遮挡下点击没生效"
@@ -431,12 +450,12 @@ def c14_background_covered():
 
 
 @case
-def c15_type_text():
-    """type_text: windows 键盘通道 KeyPress 虽是引擎死案, 打字走 keymouse
-    直投 WM_CHAR 不经该路径 —— 靶子打字行收字重绘, OCR 回读验证。
-    (不用 wait_text: 打字行整行一个 token, 2 字短词比例匹配命中不了)"""
+def c15_send_string():
+    """直通 SendString: WM_CHAR 直投打字行(windows 通道, 不经 KeyPress) ——
+    靶子收字重绘, OCR 回读验证。(不用 wait_text: 打字行整行一个 token,
+    2 字短词比例匹配命中不了)"""
     to_main()
-    dsl.type_text("你好挂机")
+    dsl.SendString(dsl.GetBindWindow(), "你好挂机")
     got, end = "", time.monotonic() + 8.0            # 收字重绘+OCR 抖动留余量
     while time.monotonic() < end:
         got = dsl.ocr(region=TYPED)
@@ -444,6 +463,21 @@ def c15_type_text():
             break
         time.sleep(0.3)
     assert "你好挂机" in got, f"打字行没读到: {got!r}"
+
+
+@case
+def c16_window_dm():
+    """直通窗口族: FindWindow 按类名找回靶子, 标题/客户区对布局契约,
+    按进程枚举应含自身。"""
+    hwnd = dsl.FindWindow("IcefragRange")
+    assert hwnd and hwnd == dsl.GetBindWindow(), "FindWindow 应找回绑定靶"
+    assert "靶场" in dsl.GetWindowTitle(hwnd)
+    assert dsl.GetClientSize(hwnd) == (640, 480)
+    pid = dsl.GetWindowProcessId(hwnd)
+    hwnds = [int(h) for h in
+             dsl.EnumWindowByProcessId(pid, "靶场", "IcefragRange", 1 + 2 + 8)
+             .split(",") if h]
+    assert hwnd in hwnds, f"按进程枚举应含自身: {hwnds}"
 
 
 def main():

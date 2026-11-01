@@ -1,29 +1,30 @@
 # -*- coding: utf-8 -*-
-"""DSL: task.py 的顶层挂机动词表。task.py 顶部一行 `from icefrag.dsl import *` 即得。
+"""命令清单: task.py 顶层可用的一切命令。顶部一行 `from icefrag.dsl import *` 即得。
+
+两层:
+  icefrag 命令(22 个, snake_case) —— 只收"组装": 拟人键鼠/等待环/复合动作/
+    OCR 识字/界面导航。大漠单命令的换皮一律不收: 单帧查询直接用大漠直通。
+  大漠直通(85 个, PascalCase) —— imgbot DmSoft 公有方法同名同参透传:
+    LeftClick / FindPic / SetWindowState / SendString ... 与大漠一字不差,
+    老脚本肌肉记忆零成本。仅 window 端可用(adb 端调用报错指路)。
 
 约定(违者必踩):
   ① 凡时间皆毫秒 —— sleep(500)=半秒, timeout=10000=10 秒(默认值);
   ② 找不到/超时返回 None 或 False, 不抛异常 —— "没找到"是挂机常态, 真故障
      (窗口没了)由框架绑定层兜底重开;
   ③ 停止信号(F9)贯穿所有 sleep 与等待, 按下即醒即退;
-  ④ 冷门动作(wait_until/retry/wait_stable/wait_change/swipe_find/read_number/
-     probe/check_points...)与窗口管理走 ctx.ops / ctx.dm / ctx.device 逃生舱。
+  ④ 大漠直通仅 window 端; adb 方言与更冷门的动作走 ctx.device / ctx.ops 逃生舱。
 
 命令速查(★ = 一步顶三步的招牌复合动作):
   键鼠  click(x, y[, jitter, human, settle])  拟人点击: 贝塞尔轨迹+随机停顿+
         落点抖动(默认在 scaffold.toml, 调用处可单次覆盖; human=False 瞬移急点)
         dblclick(x, y[, ...])  双击(同 click 参数)
         drag(x1, y1, x2, y2, ms)   按住拖拽(列表滚动/滑块)
-        move(x, y)   key("ctrl+s")   sleep(ms)|(lo, hi 随机)
-        type_text(text)  打字进绑定目标(中文可, 聊天/搜索框; 老ANSI窗口打不进字
-        走 ctx.dm.SendString(hwnd, text, ime=True))
+        sleep(ms)|(lo, hi 随机)
+        裸键鼠/打字走大漠直通: MoveTo/LeftClick/KeyPressChar/SendString/WheelDown
   消息  log(text)   shot(tag)   stopped() -> bool(F9 叫停了吗, 挂机循环退出条件)
-  找点  find_color(color, region, tol) -> [(x, y), ...]    单帧找全部色块
-        find_all(pic) -> [(x, y), ...]                      单帧找全部同类图
-        find_multi_color(rect, pts, direction) -> (x, y)|None  多点找色(大漠
-        FindMultiColor 对应物, 色块与同色文字的判别器; pts=[Pt(0,0,色,tol),...],
-        pixpick 生产, 见 imgbot 仓《多点找色Pt规范.md》)
-        exists(pic) -> bool
+  找点  find_all(pic) -> [(x, y), ...]   单帧找全部同类图(imgbot 的 dm 无
+        FindPicEx, 这是真增量; 单个命中用直通 FindPic)
   ★     find_tap(pic, timeout=0, verify=None) -> bool      找到就拟人点(0=单帧;
         verify=点后必须出现的图, 没等到=失败, 防"点了没跳转")
   ★     tap_until_gone(pic, timeout) -> int 连点数          连点到消失
@@ -33,8 +34,8 @@
         wait_color_gone(color) -> bool  wait_text(text) -> (x, y, 相似度) | None
   识字  ocr(region) -> str                    读全文("任务名叫什么")
         ocr_numbers(region) -> [23, 456]       抠数字(等级取[0], 坐标取[:2])
-  找字  find_str(text, region) -> (x, y) | None  找文字位置(大漠 FindStr 风,
-        找到就能点; 关键词 ≥4 字才稳)
+  找字  find_str(text, region) -> (x, y) | None  OCR 找字位置(找到就能点;
+        关键词 ≥4 字才稳; 非 dm 字库线, 是全生态唯一识字线)
   导航  go("dungeon") -> bool   界面导航图带路(task.py 声明 NAV_SCREENS/NAV_EDGES,
         迷路自动重定位自愈; 迷路且重定位失败抛 LostError → 配 on_fuse 重登)
         at("city") -> bool      期望验证: 是否在指定界面(单帧一张锚点, 便宜)
@@ -46,19 +47,7 @@ import re
 import threading
 import time
 
-from imgbot.vision import Pt
-
 _local = threading.local()
-
-_MODIFIERS = ("ctrl", "alt", "shift", "win")
-
-# 安卓键名→keycode(dsl.key 的 adb 分支; 组合键安卓无此语义, 不支持)
-ADB_KEYS = {"home": 3, "back": 4, "menu": 82, "enter": 66, "search": 84,
-            "del": 67, "delete": 67, "tab": 61, "space": 62, "esc": 111,
-            "up": 19, "down": 20, "left": 21, "right": 22,
-            "vol_up": 24, "vol_down": 25, "power": 26,
-            "0": 7, "1": 8, "2": 9, "3": 10, "4": 11, "5": 12, "6": 13,
-            "7": 14, "8": 15, "9": 16}
 
 
 def _bind(ctx):
@@ -70,23 +59,11 @@ def _ctx():
     ctx = getattr(_local, "ctx", None)
     if ctx is None:
         raise RuntimeError(
-            "DSL 命令要在任务里用(main_task 及其子函数), 脚手架外没有绑定")
+            "命令要在任务里用(main_task 及其子函数), 脚手架外没有绑定")
     return ctx
 
 
-__all__ = [
-    "click", "dblclick", "drag", "move", "key", "type_text", "sleep",
-    "stopped", "log", "shot",
-    "find_color", "find_all", "find_multi_color", "exists",
-    "find_tap", "tap_until_gone",
-    "wait_pic", "wait_pic_any", "wait_pic_gone",
-    "wait_color", "wait_color_gone", "wait_text",
-    "ocr", "ocr_numbers", "find_str", "Pt",
-    "go", "at", "progress",
-]
-
-
-# ================= 键鼠(端无关: window=dm / adb=device) =================
+# ================= 键鼠(拟人: window=dm 通道 / adb=device) =================
 def _pt_jitter(x, y, j):
     """落点抖动 ±j px(0=关): 每次精确点同一处也是机器人特征。"""
     if not j:
@@ -163,51 +140,6 @@ def drag(x1: int, y1: int, x2: int, y2: int, ms: int = 350):
         ctx.device.swipe(int(x1), int(y1), int(x2), int(y2), int(ms))
 
 
-def move(x: int, y: int):
-    """悬停(不点)。adb 端无悬停概念, 报错指路。"""
-    ctx = _ctx()
-    if ctx.backend == "window":
-        ctx.dm.MoveTo(x, y)
-    else:
-        raise RuntimeError("adb 端无悬停, 用 click / ctx.device.swipe")
-
-
-def key(s: str):
-    """按键/组合键: key("enter") / key("ctrl+s")(修饰键 ctrl/alt/shift/win)。"""
-    ctx = _ctx()
-    parts = [p.strip().lower() for p in s.split("+")]
-    mods, main = parts[:-1], parts[-1]
-    bad = [m for m in mods if m not in _MODIFIERS]
-    if bad:
-        raise ValueError(f"修饰键只认 {_MODIFIERS}: {s!r}")
-    if ctx.backend == "window":
-        dm = ctx.dm
-        for m in mods:
-            dm.KeyDownChar(m)
-        dm.KeyPressChar(main)
-        for m in reversed(mods):
-            dm.KeyUpChar(m)
-    else:
-        if mods:
-            raise ValueError(f"adb 端无组合键语义, 单键用键名: {ADB_KEYS}")
-        code = ADB_KEYS.get(main)
-        if code is None:
-            raise ValueError(f"adb 键名未收录(可加进 ADB_KEYS): {main!r}")
-        ctx.device.keyevent(code)
-
-
-def type_text(text: str):
-    """打字进绑定目标(聊天/搜索/改名框), 中文可: window=当前键鼠通道逐字
-    注入, adb=ADBKeyboard 广播(首次自动装输入法)。老 ANSI 窗口(龙之谷类)
-    WM_CHAR 打不进字, 走 ctx.dm.SendString(hwnd, text, ime=True)。"""
-    ctx = _ctx()
-    ctx.progress()
-    if ctx.backend == "window":
-        ctx.dm.keymouse.type_text(text)
-    else:
-        ctx.device.type_text(text)
-
-
 # ================= 消息 =================
 def sleep(ms):
     """可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。
@@ -234,39 +166,13 @@ def shot(tag: str = ""):
 
 
 # ================= 找点(单帧) =================
-def find_color(color: str, region=None, tol: int = 0) -> list[tuple[int, int]]:
-    """区域找全部色块。color="RRGGBB"(偏差给 tol, 或写 "RRGGBB-DRDGDB")。"""
-    hit = _ctx().ops.find_color(color, region=region, tol=tol)
-    if hit:
-        _ctx().progress()
-    return hit
-
-
 def find_all(pic: str, region=None, threshold: float | None = None
              ) -> list[tuple[int, int]]:
-    """单帧找全部同类图(列表项/多目标), 近邻去重。"""
+    """单帧找全部同类图(列表项/多目标), 近邻去重。单个命中用大漠直通 FindPic。"""
     hits = _ctx().ops.find_all(pic, region=region, threshold=threshold)
     if hits:
         _ctx().progress()
     return hits
-
-
-def exists(pic: str, region=None, threshold: float | None = None) -> bool:
-    ok = _ctx().ops.exists(pic, region=region, threshold=threshold)
-    if ok:
-        _ctx().progress()
-    return ok
-
-
-def find_multi_color(rect, points, direction: int = 0):
-    """多点找色(大漠 FindMultiColor 对应物): 锚点在 rect 内搜索, 全部相对
-    偏移点同时命中才返回锚点 (x, y) 或 None —— 色块与同色文字的判别器。
-    points 为 Pt 列表(pixpick 生产), 也收 [(dx,dy,"RRGGBB"[,tol]), ...] 色串。
-    direction: 多候选取哪个, 0 左上 1 左下 2 右上 3 右下。"""
-    hit = _ctx().ops.find_multi_color(rect, points, direction)
-    if hit:
-        _ctx().progress()
-    return hit
 
 
 # ================= 复合动作(招牌) =================
@@ -353,7 +259,7 @@ def ocr_numbers(region=None) -> list[int]:
 
 
 def find_str(text: str, region=None, min_ratio: float = 0.7):
-    """找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,
+    """找字(OCR 线): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None,
     找到就能点。关键词 ≥4 字才稳(实测 7 字错 1 字仍命中); 2 字短词比例上限
     低, 需缩 region 并降 min_ratio。"""
     hit = _ctx().ops.find_text(text, region, min_ratio)
@@ -388,3 +294,50 @@ def progress(note: str = ""):
     """手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。
     长轮询循环里打点, 防无进展看门狗误杀。"""
     _ctx().progress(note)
+
+
+# ==================== 大漠直通(DmSoft 公有方法同名透传) ====================
+def _dm_public_names() -> list[str]:
+    """DmSoft 公有命令名: 下划线私有不收, keymouse 这类属性(非命令)不收。
+    introspect 生成 —— imgbot 侧加命令自动跟进, 零维护零漂移。"""
+    from imgbot.dmsoft import DmSoft
+    return sorted(n for n in dir(DmSoft)
+                  if not n.startswith("_") and callable(getattr(DmSoft, n)))
+
+
+def _dm_proxy(name: str):
+    """同名代理: 委托本线程绑定目标的 dm —— 签名/返回/语义与大漠一字不差,
+    不加任何魔法(不打点/不换算), 原样直通。"""
+    from imgbot.dmsoft import DmSoft
+    brief = (getattr(DmSoft, name).__doc__ or "").strip().split("\n")[0]
+
+    def call(*args, **kwargs):
+        dm = _ctx().dm
+        fn = getattr(dm, name, None)
+        if fn is None:
+            raise RuntimeError(f"大漠直通命令仅 window 端可用: {name}(); "
+                               "adb 端走 icefrag 命令 / ctx.device")
+        return fn(*args, **kwargs)
+
+    call.__name__ = name
+    call.__doc__ = f"大漠直通: {brief}" if brief else "大漠直通(与大漠同名同参)。"
+    return call
+
+
+DM_PASSTHROUGH = _dm_public_names()
+
+_dm_clash = [n for n in DM_PASSTHROUGH if n in globals()]
+assert not _dm_clash, f"DmSoft 命令与 icefrag 命令撞名, 透传层拒建: {_dm_clash}"
+for _name in DM_PASSTHROUGH:
+    globals()[_name] = _dm_proxy(_name)
+del _name
+
+__all__ = [
+    "click", "dblclick", "drag", "sleep",
+    "stopped", "log", "shot",
+    "find_all", "find_tap", "tap_until_gone",
+    "wait_pic", "wait_pic_any", "wait_pic_gone",
+    "wait_color", "wait_color_gone", "wait_text",
+    "ocr", "ocr_numbers", "find_str",
+    "go", "at", "progress",
+] + DM_PASSTHROUGH

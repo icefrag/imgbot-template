@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """icefrag 开发手册生成器 → 三产物(给脚本开发者, 骨架 zip 的 README 即 md 版)。
 
-- docs/icefrag开发手册.md    给 AI / 骨架 README(全文: 上手+业务+DSL 语法+配置+通道+保障+打包+FAQ)
+- docs/icefrag开发手册.md    给 AI / 骨架 README(全文: 上手+业务+命令清单+配置+通道+保障+打包+FAQ)
 - docs/icefrag开发手册.html  单文件版(浏览器直接开)
 - docs/icefrag开发手册.chm   编译版(便携 hhc 在 D:/tools/hhw; 内部路径 ASCII, 名字 GBK)
 
 防漂移(违者直接退出, 与代码对账):
-- DSL 命令表: 签名 inspect.signature 实时内省; GROUPS 漏命令/多命令报错;
+- 命令清单: icefrag 命令签名内省 icefrag/dsl.py, 大漠直通签名内省 imgbot
+  DmSoft 本尊; GROUPS/DM_GROUPS 漏命令/多命令报错;
 - 配置表: 默认值/类型从 ScaffoldConfig dataclass 内省; CFG_DESC 少写/多写键报错。
 散文章节手排 PROSE(唯一文档源, 手写手册已退役)。
 
@@ -26,16 +27,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from icefrag import dsl, settings as scfg  # noqa: E402
+from imgbot.dmsoft import DmSoft  # noqa: E402
 
 DOCS = ROOT / "docs"
 TITLE = "icefrag 开发手册"
 CHM_NAME = "icefrag开发手册"
 
-# ==================== DSL 命令分组(签名内省) ====================
+# ==================== icefrag 命令分组(签名内省 dsl) ====================
 GROUPS = [
-    ("键鼠", ["click", "dblclick", "drag", "move", "key", "type_text", "sleep"]),
+    ("键鼠(拟人)", ["click", "dblclick", "drag", "sleep"]),
     ("消息", ["log", "shot", "stopped"]),
-    ("找点(单帧)", ["find_color", "find_all", "find_multi_color", "exists"]),
+    ("找点(单帧)", ["find_all"]),
     ("复合动作", ["find_tap", "tap_until_gone"]),
     ("等待(超时返 None/False)", ["wait_pic", "wait_pic_any", "wait_pic_gone",
                                 "wait_color", "wait_color_gone", "wait_text"]),
@@ -44,21 +46,43 @@ GROUPS = [
     ("看门狗", ["progress"]),
 ]
 
+# ==================== 大漠直通分组(签名内省 DmSoft 本尊) ====================
+DM_GROUPS = [
+    ("键鼠", ["MoveTo", "MoveR", "LeftClick", "LeftDoubleClick", "LeftDown",
+            "LeftUp", "RightClick", "RightDown", "RightUp", "MiddleClick",
+            "MiddleDown", "MiddleUp", "WheelDown", "WheelUp", "KeyPress",
+            "KeyDown", "KeyUp", "KeyPressChar", "KeyDownChar", "KeyUpChar",
+            "KeyPressStr", "SendString", "SendPaste", "GetCursorPos",
+            "LockMouseRect"]),
+    ("图色", ["Capture", "CapturePng", "CaptureJpg", "GetColor", "GetColorBGR",
+            "CmpColor", "FindColor", "FindColorE", "FindColorEx", "FindPic",
+            "FindPicE", "FindMultiColor", "GetColorNum", "IsDisplayDead"]),
+    ("窗口", ["FindWindow", "FindWindowEx", "GetWindowClass", "GetWindowTitle",
+            "GetWindowRect", "GetClientRect", "GetClientSize", "ClientToScreen",
+            "ScreenToClient", "MoveWindow", "SetWindowState", "EnumWindow",
+            "EnumWindowByProcess", "EnumWindowByProcessId",
+            "GetWindowProcessId", "GetWindowProcessPath",
+            "GetForegroundWindow"]),
+    ("绑定与环境", ["BindWindow", "UnBindWindow", "ForceUnBindWindow",
+                "GetBindWindow", "IsBind", "SwitchBindWindow", "EnableBind",
+                "EnableFakeActive", "EnableRealMouse", "EnableRealKeypad",
+                "EnableMouseSync", "EnableKeypadSync", "EnableSpeedDx",
+                "EnableIme", "EnableKeypadMsg", "EnableMouseMsg",
+                "EnableKeypadPatch", "SetDisplayDelay",
+                "SetDisplayRefreshDelay"]),
+    ("其他", ["LockInput", "LockDisplay", "GetFps", "HackSpeed", "SetAero",
+            "DownCpu", "SetInputDm", "SetPath", "Ver", "GetLastError"]),
+]
+
 EXAMPLES = {
     "click": 'click(231, 347)                       # 拟人点击(轨迹+停顿+抖动), 默认见 scaffold.toml\nclick(231, 347, human=False)            # 瞬移急点(速度优先)\nclick(231, 347, jitter=0, settle=200)  # 精确落点, 到位停 200ms',
     "dblclick": 'dblclick(400, 300)',
     "drag": 'drag(450, 550, 450, 150)               # 列表上滑(按住拖)\ndrag(100, 300, 500, 300, ms=500)       # 横拖, 500ms',
-    "move": 'move(400, 300)                         # 悬停不点',
-    "key": 'key("ctrl+s")\nkey("enter")',
-    "type_text": 'find_tap("聊天框.png")                      # 先点开输入框\ntype_text("出售红药500金")               # 打字(中文可)\n# 老ANSI窗口打不进字: ctx.dm.SendString(hwnd, "文字", ime=True)',
     "sleep": 'sleep(500)                            # 半秒, F9 按下立刻醒\nsleep((400, 900))                    # 区间随机(固定间隔是检测特征)',
     "log": 'log(f"击杀 ×{kills}", "info")           # level: info|warn|error',
     "shot": 'shot("boss出现")                       # 留痕到 logs/shots',
     "stopped": 'while not stopped():               # F9 叫停了吗(挂机循环退出条件)\n    打怪一轮()',
-    "find_color": 'hit = find_color("CC3333", tol=40, region=(0, 0, 900, 570))\nif hit: click(*hit[0])',
     "find_all": 'for x, y in find_all("小地图图标.png"): click(x, y)',
-    "find_multi_color": 'from icefrag.dsl import Pt\nMON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]\nhit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None',
-    "exists": 'if exists("金币满.png"): key("b")',
     "find_tap": 'find_tap("领取按钮.png")                        # 单帧试\nfind_tap("每日签到.png", timeout=5000)              # 等最多 5 秒\nfind_tap("签到.png", verify="主界面.png")          # 点后必须见到确认图',
     "tap_until_gone": 'n = tap_until_gone("确定按钮.png")       # 返回点击次数',
     "wait_pic": 'hit = wait_pic("结算面板.png", timeout=8000)   # (x, y, 分) | None',
@@ -191,22 +215,30 @@ class BusinessConfig:
 任务里 `ctx.cfg.attack_wait` 取当前值。
 """),
         ("5. task.py: 挂机逻辑", """
-`main_task(ctx)` 是任务主体, 顶层命令 `from icefrag.dsl import *` 直接用:
+`main_task(ctx)` 是任务主体, 顶层命令 `from icefrag.dsl import *` 直接用 ——
+两层: **icefrag 命令**(组装层: 拟人键鼠/等待环/复合动作) + **大漠直通**(DmSoft
+全量同名同参, 仅 window 端):
 
 ```python
 from icefrag.dsl import *
 
-RED = (51, 51, 204)                                  # #CC3333 的 BGR
-MON_PTS = [Pt(0, 0, RED, 40), Pt(8, 0, RED, 40)]     # 多点找色点阵
-
 def main_task(ctx):
     while not stopped():                             # 挂机循环自己写
-        hit = find_multi_color((0, 0, 900, 640), MON_PTS)
+        hit = wait_pic("怪.png", timeout=3000)       # 等怪 (x, y, 分) | None
         if not hit:
             log("场上无怪"); sleep((1000, 2000)); continue
-        click(*hit)
-        if wait_color_gone("CC3333-282828", timeout=10000):
+        click(*hit[:2])
+        if wait_pic_gone("怪.png", timeout=10000):   # 等击杀
             log("击杀"); shot("kill")                # 留痕到 logs/shots
+```
+
+大漠直通与大漠一字不差, 老脚本直接搬:
+
+```python
+idx, x, y = FindPic(0, 0, 640, 480, "领取按钮.png") # 未找到 = (-1, -1, -1)
+if idx >= 0:
+    MoveTo(x, y); LeftClick()
+SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口加 ime=True)
 ```
 
 **循环自己写, 返回 = 任务完成**: main_task 只被框架调用**一次**, 正常返回即整个
@@ -215,7 +247,7 @@ def main_task(ctx):
 框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。
 
 命令权威表见本手册**三章**(签名由框架内省生成, 与代码不漂移)。
-冷门动作走逃生舱: `ctx.ops`(图色门面)/`ctx.dm`(DmSoft 全量)/`ctx.device`(adb 方言)。
+adb 方言与更冷门的动作走逃生舱: `ctx.ops`(图色门面)/`ctx.device`(adb 方言)。
 """),
         ("6. 图色素材", """
 素材就是 PNG 和色值, 用你顺手的截图工具做, 放进 `templates/` 即可:
@@ -354,7 +386,7 @@ def _md(text: str) -> str:
     return "\n".join(out)
 
 
-# ==================== DSL 命令页(内省) ====================
+# ==================== icefrag 命令页(内省 dsl) ====================
 def _sig(name: str) -> str:
     sig = inspect.signature(getattr(dsl, name))
     parts = [f"{p.name}{'' if p.default is inspect.Parameter.empty else f'={p.default!r}'}"
@@ -369,6 +401,33 @@ def _brief(name: str) -> str:
 def _doc_extra(name: str) -> str:
     doc = (getattr(dsl, name).__doc__ or "").strip().split("\n")
     return "<br>".join(l.strip() for l in doc[1:] if l.strip())
+
+
+# ==================== 大漠直通命令表(签名内省 DmSoft 本尊) ====================
+def _dm_sig(name: str) -> str:
+    sig = inspect.signature(getattr(DmSoft, name))
+    params = list(sig.parameters.values())[1:]     # 去 self(类方法内省带上)
+    parts = [f"{p.name}{'' if p.default is inspect.Parameter.empty else f'={p.default!r}'}"
+             for p in params]
+    return f"{name}({', '.join(parts)})"
+
+
+def _dm_brief(name: str) -> str:
+    return (getattr(DmSoft, name).__doc__ or "").strip().split("\n")[0] or "—"
+
+
+def dm_table_md(names) -> str:
+    rows = ["| 命令 | 原型 | 说明 |", "|---|---|---|"]
+    rows += [f"| **{n}** | `{_dm_sig(n)}` | {_dm_brief(n)} |" for n in names]
+    return "\n".join(rows)
+
+
+def dm_table_html(names) -> str:
+    rows = ["<table border=1><tr><th>命令</th><th>原型</th><th>说明</th></tr>"]
+    rows += [f"<tr><td><code>{n}</code></td><td><code>{_esc(_dm_sig(n))}</code></td>"
+             f"<td>{_inline(_dm_brief(n))}</td></tr>" for n in names]
+    rows.append("</table>")
+    return "\n".join(rows)
 
 
 def _head() -> str:
@@ -432,12 +491,21 @@ def cfg_table_html(group_keys) -> str:
 def build():
     # -- 对账断言(防漂移) --
     listed = [n for _, names in GROUPS for n in names]
-    missing = set(dsl.__all__) - set(listed) - {"Pt"}
+    missing = set(dsl.__all__) - set(listed) - set(dsl.DM_PASSTHROUGH)
     extra = set(listed) - set(dsl.__all__)
     if missing:
         sys.exit(f"GROUPS 漏了命令: {missing}")
     if extra:
         sys.exit(f"GROUPS 多了不存在的命令: {extra}")
+    dm_public = {n for n in dir(DmSoft)
+                 if not n.startswith("_") and callable(getattr(DmSoft, n))}
+    dm_listed = [n for _, names in DM_GROUPS for n in names]
+    if set(dm_listed) != dm_public:
+        sys.exit(f"DM_GROUPS 与 DmSoft 公有命令不一致: "
+                 f"少写 {dm_public - set(dm_listed)} / "
+                 f"多写 {set(dm_listed) - dm_public}")
+    if sorted(dm_public) != dsl.DM_PASSTHROUGH:
+        sys.exit("dsl.DM_PASSTHROUGH 与 DmSoft 内省不一致")
     fields = {f.name for f in dataclasses.fields(scfg.ScaffoldConfig)}
     if set(CFG_DESC) != fields:
         sys.exit(f"CFG_DESC 与 ScaffoldConfig 键不一致: "
@@ -469,7 +537,7 @@ def build():
                 kids.append((gname, fn))
         toc.append((chap, kids))
 
-    # DSL 章: 每命令一页(沿用既有目录形态)
+    # 命令清单章: icefrag 命令每命令一页 + 大漠直通每类一页大表
     ids = {}
     dsl_kids = []
     for ci, (cat, names) in enumerate(GROUPS):
@@ -480,22 +548,32 @@ def build():
             (chm_dir / f"{ids[n]}.html").write_text(page_html(n), encoding="utf-8")
             grp_kids.append((n, ids[n] + ".html"))
         dsl_kids.append((cat, grp_kids))
-    toc.insert(2, ("三、DSL 语法", None))          # 特殊: 嵌套组, 单独渲染
+    for gi, (cat, names) in enumerate(DM_GROUPS):
+        fn = f"dm{gi}.html"
+        pages[fn] = (_head() + f"<h1>大漠直通 · {cat}</h1>"
+                     + "<p>同名同参透传 imgbot DmSoft(仅 window 端, adb 端调用"
+                       "报错指路)。签名由生成器内省生成, 与代码不漂移。</p>"
+                     + dm_table_html(names) + "</body></html>")
+        dsl_kids.append((f"大漠直通 · {cat}", [("命令表", fn)]))
+    toc.insert(2, ("三、命令清单", None))          # 特殊: 嵌套组, 单独渲染
 
     # -- md 产物(骨架 README / AI 权威版) --
     md = [f"# {TITLE}", "",
-          "> 上手 → 业务 → DSL 语法 → 配置 → 通道 → 保障 → 打包 → FAQ。",
+          "> 上手 → 业务 → 命令清单 → 配置 → 通道 → 保障 → 打包 → FAQ。",
           "> 命令签名与配置默认值由 `scripts/build_docs.py` 内省生成, 与代码不漂移。", ""]
     for chap, secs in PROSE:
         md.append(f"## {chap}")
         for sec, body in secs:
             md += [f"### {sec}", body.strip(), ""]
-    md += ["## 三、DSL 语法", ""]
+    md += ["## 三、命令清单", ""]
     for cat, names in GROUPS:
         md += [f"### {cat}", "", "| 命令 | 原型 | 说明 |", "|---|---|---|"]
         for n in names:
             md.append(f"| **{n}** | `{_sig(n)}` | {_brief(n)} |")
         md.append("")
+    md += ["### 大漠直通(与大漠同名同参, 仅 window 端)", ""]
+    for cat, names in DM_GROUPS:
+        md += [f"#### {cat}", "", dm_table_md(names), ""]
     md += ["### 示例速查", ""]
     for _, names in GROUPS:
         for n in names:
@@ -544,7 +622,7 @@ def build():
 
     entries = []
     for chap, kids in toc:
-        if kids is None:                            # DSL 章: 组→命令 两层
+        if kids is None:                            # 命令清单章: 组→命令 两层
             inner = "".join(
                 li(cat, "", "".join(li(n, f) for n, f in gk), 2)
                 for cat, gk in dsl_kids)
@@ -587,6 +665,9 @@ def build():
                 single += [f"<tr><td><code>{n}</code></td><td><code>{_sig(n)}"
                            f"</code></td><td>{_brief(n)}</td></tr>" for n in names]
                 single.append("</table>")
+            for cat, names in DM_GROUPS:
+                single.append(f"<h3>大漠直通 · {cat}</h3>")
+                single.append(dm_table_html(names))
         else:
             for c, ss in PROSE + PROSE_LATE:
                 if c != chap:

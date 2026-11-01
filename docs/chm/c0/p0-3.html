@@ -1,9 +1,10 @@
 <html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body>
-<h1><code>move</code></h1>
-<p>悬停(不点)。adb 端无悬停概念, 报错指路。</p>
+<h1><code>sleep</code></h1>
+<p>可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。</p>
 <h2>原型</h2>
-<pre>move(x, y)</pre>
-
+<pre>sleep(ms)</pre>
+ms 给区间则每次取随机: sleep((400, 900)) —— 固定间隔是检测特征。
 <h2>示例</h2>
-<pre>move(400, 300)                         # 悬停不点</pre>
+<pre>sleep(500)                            # 半秒, F9 按下立刻醒
+sleep((400, 900))                    # 区间随机(固定间隔是检测特征)</pre>
 </body></html>

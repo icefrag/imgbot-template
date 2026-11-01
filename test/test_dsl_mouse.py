@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-"""dsl 键鼠组织层离线自检: 假 ctx + 假键鼠/假设备, 验拟人路由/抖动界/停顿
-管道/急点分支/drag 两端/sleep 区间/find_tap 透传。跑法: uv run test/test_dsl_mouse.py
+"""命令组织层离线自检: 假 ctx + 假键鼠/假设备, 验拟人路由/抖动界/停顿管道/
+急点分支/drag 两端/sleep 区间/find_tap 透传/大漠直通代理/解锁保险丝。
+跑法: uv run test/test_dsl_mouse.py
 """
 import threading
 import time
 import types
 
 from icefrag import dsl
-from icefrag.backends import MouseStyle, _AdbDm
+from icefrag.backends import MouseStyle, _AdbDm, unbind
 
 
 class FakeMk:                          # 假 dm.keymouse(录制一步式调用)
@@ -20,15 +21,13 @@ class FakeMk:                          # 假 dm.keymouse(录制一步式调用)
     def double_click(self, x, y, settle=None):
         self.calls.append(("dbl", x, y, settle))
 
-    def type_text(self, text):
-        self.calls.append(("type", text))
-
 
 class FakeDm:
     def __init__(self, mk):
         self.keymouse = mk
         self.calls = []
-        self.key_calls = []
+        self.lock_calls = []
+        self.unbound = 0
 
     def MoveTo(self, x, y):
         self.calls.append(("move", x, y))
@@ -45,14 +44,13 @@ class FakeDm:
     def LeftUp(self):
         self.calls.append(("lup",))
 
-    def KeyDownChar(self, k):
-        self.key_calls.append(("down", k))
+    def LockInput(self, v):
+        self.lock_calls.append(v)
+        return 1
 
-    def KeyPressChar(self, k):
-        self.key_calls.append(("press", k))
-
-    def KeyUpChar(self, k):
-        self.key_calls.append(("up", k))
+    def UnBindWindow(self):
+        self.unbound += 1
+        return 1
 
 
 class FakeOps:
@@ -68,20 +66,12 @@ class FakeDevice:
     def __init__(self):
         self.taps = []
         self.swipes = []
-        self.keys = []
-        self.texts = []
 
     def tap(self, x, y):
         self.taps.append((x, y))
 
     def swipe(self, x1, y1, x2, y2, ms):
         self.swipes.append((x1, y1, x2, y2, ms))
-
-    def keyevent(self, code):
-        self.keys.append(code)
-
-    def type_text(self, text):
-        self.texts.append(text)
 
 
 def bind(backend="window", mouse=None):
@@ -171,38 +161,31 @@ def main():
     ctx.stop.set()
     assert dsl.stopped() is True
 
-    # 11. key: 组合键按下序 = 修饰逐个 down → 主键 press → 修饰逆序 up
+    # 11. 大漠直通: 同名委托绑定 dm, 参数原样透传
     ctx = bind()
-    dsl.key("ctrl+shift+s")
-    assert ctx.dm.key_calls == [("down", "ctrl"), ("down", "shift"),
-                                ("press", "s"), ("up", "shift"),
-                                ("up", "ctrl")], ctx.dm.key_calls
-    dsl.key("ENTER")                            # 大小写归一
-    assert ctx.dm.key_calls[-1] == ("press", "enter")
+    dsl.MoveTo(11, 22)
+    dsl.LeftClick()
+    assert ctx.dm.calls == [("move", 11, 22), ("lclick",)]
+
+    # 12. 大漠直通: adb 端缺命令报错指路; 鸭子恰有的(LeftClick)照常通
+    ctx = bind(backend="adb")
+    dsl.LeftClick()                             # _AdbDm.LeftClick → tap
+    assert ctx.device.taps
     try:
-        dsl.key("meta+x")
-        raise AssertionError("非法修饰键应报错")
-    except ValueError:
-        pass
+        dsl.SetWindowState(123, 6)
+        raise AssertionError("adb 端缺直通命令应报错指路")
+    except RuntimeError as e:
+        assert "window 端" in str(e), e
 
-    # 12. key: adb 单键映射 keycode; 组合键/未收录键名报错
-    ctx = bind(backend="adb")
-    dsl.key("back")
-    assert ctx.device.keys == [4]               # ADB_KEYS: back=4
-    for bad in ("ctrl+s", "f13"):
-        try:
-            dsl.key(bad)
-            raise AssertionError(f"{bad!r} 应报错")
-        except ValueError:
-            pass
+    # 13. 直通面: 星号含 dm 命令名; 属性 keymouse 不进; 无撞名(star 不覆盖)
+    assert {"LeftClick", "FindPic", "SendString"} <= set(dsl.__all__)
+    assert "keymouse" not in dsl.__all__
+    assert len(set(dsl.__all__)) == len(dsl.__all__)
 
-    # 13. type_text: window 走绑定通道 keymouse, adb 走 device(输入法广播)
+    # 14. LockInput 保险丝: unbind 先强制解锁再 UnBindWindow
     ctx = bind()
-    dsl.type_text("你好")
-    assert ctx.dm.keymouse.calls == [("type", "你好")]
-    ctx = bind(backend="adb")
-    dsl.type_text("你好")
-    assert ctx.device.texts == ["你好"]
+    unbind(ctx)
+    assert ctx.dm.lock_calls == [0] and ctx.dm.unbound == 1
 
     print("test_dsl_mouse: 全部通过")
 

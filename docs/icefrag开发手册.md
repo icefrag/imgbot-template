@@ -1,6 +1,6 @@
 # icefrag 开发手册
 
-> 上手 → 业务 → DSL 语法 → 配置 → 通道 → 保障 → 打包 → FAQ。
+> 上手 → 业务 → 命令清单 → 配置 → 通道 → 保障 → 打包 → FAQ。
 > 命令签名与配置默认值由 `scripts/build_docs.py` 内省生成, 与代码不漂移。
 
 ## 一、快速上手
@@ -55,22 +55,30 @@ class BusinessConfig:
 任务里 `ctx.cfg.attack_wait` 取当前值。
 
 ### 5. task.py: 挂机逻辑
-`main_task(ctx)` 是任务主体, 顶层命令 `from icefrag.dsl import *` 直接用:
+`main_task(ctx)` 是任务主体, 顶层命令 `from icefrag.dsl import *` 直接用 ——
+两层: **icefrag 命令**(组装层: 拟人键鼠/等待环/复合动作) + **大漠直通**(DmSoft
+全量同名同参, 仅 window 端):
 
 ```python
 from icefrag.dsl import *
 
-RED = (51, 51, 204)                                  # #CC3333 的 BGR
-MON_PTS = [Pt(0, 0, RED, 40), Pt(8, 0, RED, 40)]     # 多点找色点阵
-
 def main_task(ctx):
     while not stopped():                             # 挂机循环自己写
-        hit = find_multi_color((0, 0, 900, 640), MON_PTS)
+        hit = wait_pic("怪.png", timeout=3000)       # 等怪 (x, y, 分) | None
         if not hit:
             log("场上无怪"); sleep((1000, 2000)); continue
-        click(*hit)
-        if wait_color_gone("CC3333-282828", timeout=10000):
+        click(*hit[:2])
+        if wait_pic_gone("怪.png", timeout=10000):   # 等击杀
             log("击杀"); shot("kill")                # 留痕到 logs/shots
+```
+
+大漠直通与大漠一字不差, 老脚本直接搬:
+
+```python
+idx, x, y = FindPic(0, 0, 640, 480, "领取按钮.png") # 未找到 = (-1, -1, -1)
+if idx >= 0:
+    MoveTo(x, y); LeftClick()
+SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口加 ime=True)
 ```
 
 **循环自己写, 返回 = 任务完成**: main_task 只被框架调用**一次**, 正常返回即整个
@@ -79,7 +87,7 @@ def main_task(ctx):
 框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。
 
 命令权威表见本手册**三章**(签名由框架内省生成, 与代码不漂移)。
-冷门动作走逃生舱: `ctx.ops`(图色门面)/`ctx.dm`(DmSoft 全量)/`ctx.device`(adb 方言)。
+adb 方言与更冷门的动作走逃生舱: `ctx.ops`(图色门面)/`ctx.device`(adb 方言)。
 
 ### 6. 图色素材
 素材就是 PNG 和色值, 用你顺手的截图工具做, 放进 `templates/` 即可:
@@ -89,18 +97,15 @@ def main_task(ctx):
 **同源裁材**: 屏幕截图的像素未必等于框架截屏的像素(后台/特殊渲染窗口)。
 从 `logs/shots/` 的留痕截图裁素材——那是框架眼里的画面, 同源必配。
 
-## 三、DSL 语法
+## 三、命令清单
 
-### 键鼠
+### 键鼠(拟人)
 
 | 命令 | 原型 | 说明 |
 |---|---|---|
 | **click** | `click(x, y, jitter=None, human=None, settle=None)` | 点击 (x, y)。默认拟人: 贝塞尔轨迹到位→随机停顿→落点抖动(默认见 |
 | **dblclick** | `dblclick(x, y, jitter=None, human=None, settle=None)` | 双击 (x, y), 参数同 click; adb 端两击带 80~120ms 间隔。 |
 | **drag** | `drag(x1, y1, x2, y2, ms=350)` | 按住拖拽(列表滚动/滑块): window=按住左键插值拖, adb=原生 swipe。 |
-| **move** | `move(x, y)` | 悬停(不点)。adb 端无悬停概念, 报错指路。 |
-| **key** | `key(s)` | 按键/组合键: key("enter") / key("ctrl+s")(修饰键 ctrl/alt/shift/win)。 |
-| **type_text** | `type_text(text)` | 打字进绑定目标(聊天/搜索/改名框), 中文可: window=当前键鼠通道逐字 |
 | **sleep** | `sleep(ms)` | 可中断睡眠: F9 按下立刻醒(代替 time.sleep 的傻等)。 |
 
 ### 消息
@@ -115,10 +120,7 @@ def main_task(ctx):
 
 | 命令 | 原型 | 说明 |
 |---|---|---|
-| **find_color** | `find_color(color, region=None, tol=0)` | 区域找全部色块。color="RRGGBB"(偏差给 tol, 或写 "RRGGBB-DRDGDB")。 |
-| **find_all** | `find_all(pic, region=None, threshold=None)` | 单帧找全部同类图(列表项/多目标), 近邻去重。 |
-| **find_multi_color** | `find_multi_color(rect, points, direction=0)` | 多点找色(大漠 FindMultiColor 对应物): 锚点在 rect 内搜索, 全部相对 |
-| **exists** | `exists(pic, region=None, threshold=None)` |  |
+| **find_all** | `find_all(pic, region=None, threshold=None)` | 单帧找全部同类图(列表项/多目标), 近邻去重。单个命中用大漠直通 FindPic。 |
 
 ### 复合动作
 
@@ -144,7 +146,7 @@ def main_task(ctx):
 |---|---|---|
 | **ocr** | `ocr(region=None, fast=False)` | 识字: OCR 读区域全文, 行间空格连接("任务名叫什么"用这个)。 |
 | **ocr_numbers** | `ocr_numbers(region=None)` | 识数: OCR 全文后抠所有数字串(等级取 [0], 坐标取 [:2]); 没识到返回 []。 |
-| **find_str** | `find_str(text, region=None, min_ratio=0.7)` | 找字(大漠 FindStr 风): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None, |
+| **find_str** | `find_str(text, region=None, min_ratio=0.7)` | 找字(OCR 线): OCR 定位 + 按序比例匹配, 返回 (x, y) 或 None, |
 
 ### 导航(需 task.py 声明表)
 
@@ -158,6 +160,118 @@ def main_task(ctx):
 | 命令 | 原型 | 说明 |
 |---|---|---|
 | **progress** | `progress(note='')` | 手动打一次进展点(看门狗信号; find/wait 命中与点击已自动打点)。 |
+
+### 大漠直通(与大漠同名同参, 仅 window 端)
+
+#### 键鼠
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **MoveTo** | `MoveTo(x, y)` | 移动虚拟光标(客户区坐标); 越出客户区矩形拒绝并返回 0(大漠反编译 |
+| **MoveR** | `MoveR(rx, ry)` | — |
+| **LeftClick** | `LeftClick()` | — |
+| **LeftDoubleClick** | `LeftDoubleClick()` | — |
+| **LeftDown** | `LeftDown()` | — |
+| **LeftUp** | `LeftUp()` | — |
+| **RightClick** | `RightClick()` | — |
+| **RightDown** | `RightDown()` | — |
+| **RightUp** | `RightUp()` | — |
+| **MiddleClick** | `MiddleClick()` | — |
+| **MiddleDown** | `MiddleDown()` | — |
+| **MiddleUp** | `MiddleUp()` | — |
+| **WheelDown** | `WheelDown()` | — |
+| **WheelUp** | `WheelUp()` | — |
+| **KeyPress** | `KeyPress(vk)` | 按键。windows 通道 = 带扫描码的消息按键(只达读消息的窗口过程, 轮询型 |
+| **KeyDown** | `KeyDown(vk)` | — |
+| **KeyUp** | `KeyUp(vk)` | — |
+| **KeyPressChar** | `KeyPressChar(key_str)` | — |
+| **KeyDownChar** | `KeyDownChar(key_str)` | — |
+| **KeyUpChar** | `KeyUpChar(key_str)` | — |
+| **KeyPressStr** | `KeyPressStr(key_str, delay=50)` | — |
+| **SendString** | `SendString(hwnd, str_, ime=False)` | 向指定窗口打字(与绑定通道无关, 大漠语义)。三条键鼠通道都实现 |
+| **SendPaste** | `SendPaste(hwnd)` | 向绑定窗口模拟 Ctrl+V(大漠语义: 粘贴剪贴板现状, 不改写内容)。 |
+| **GetCursorPos** | `GetCursorPos()` | 虚拟光标位置(客户区坐标)。大漠语义: 绑定了键鼠通道返回注入跟踪位 |
+| **LockMouseRect** | `LockMouseRect(x1, y1, x2, y2)` | — |
+
+#### 图色
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **Capture** | `Capture(x1, y1, x2, y2, file, _)` | 截取区域存 BMP; 存档格式按扩展名(PNG/JPG 同 CapturePng/CaptureJpg)。 |
+| **CapturePng** | `CapturePng(x1, y1, x2, y2, file)` | — |
+| **CaptureJpg** | `CaptureJpg(x1, y1, x2, y2, file, quality=90)` | — |
+| **GetColor** | `GetColor(x, y, _bpp=0)` | 取色, 返回 "RRGGBB"(大漠格式)。 |
+| **GetColorBGR** | `GetColorBGR(x, y)` | — |
+| **CmpColor** | `CmpColor(x, y, color, sim=1.0)` | 比较坐标颜色。返回 1/0(大漠语义)。 |
+| **FindColor** | `FindColor(x1, y1, x2, y2, color, sim=1.0, dir=0, _)` | 找色, 返回 (x, y); 未找到 (-1, -1)。dir=0 从左到右从上到下。 |
+| **FindColorE** | `FindColorE(x1, y1, x2, y2, color, sim=1.0, dir=0)` | — |
+| **FindColorEx** | `FindColorEx(x1, y1, x2, y2, color, sim=1.0, dir=0)` | — |
+| **FindPic** | `FindPic(x1, y1, x2, y2, pic_name, delta_color='000000', sim=0.9, dir=0, _)` | 找图(pic_name 支持 "a.bmp|b.bmp" 多模板)。返回 (找到的序号, x, y); |
+| **FindPicE** | `FindPicE(x1, y1, x2, y2, pic_name, delta_color='000000', sim=0.9, dir=0)` | — |
+| **FindMultiColor** | `FindMultiColor(x1, y1, x2, y2, first_color, offset_color, sim=1.0, dir=0, _)` | 多点找色: first_color="RRGGBB", offset_color="x|y|RRGGBB,...". 返回 (x, y)/(-1,-1)。 |
+| **GetColorNum** | `GetColorNum(x1, y1, x2, y2, color, sim=1.0)` | — |
+| **IsDisplayDead** | `IsDisplayDead(x1, y1, x2, y2, t=2)` | 区域 t 秒画面不变返回 1(卡屏检测; 区域裁剪后比对, 全屏死=区域死)。 |
+
+#### 窗口
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **FindWindow** | `FindWindow(class_name, title='')` | — |
+| **FindWindowEx** | `FindWindowEx(parent, class_name, title='')` | — |
+| **GetWindowClass** | `GetWindowClass(hwnd)` | — |
+| **GetWindowTitle** | `GetWindowTitle(hwnd)` | — |
+| **GetWindowRect** | `GetWindowRect(hwnd)` | — |
+| **GetClientRect** | `GetClientRect(hwnd)` | — |
+| **GetClientSize** | `GetClientSize(hwnd)` | — |
+| **ClientToScreen** | `ClientToScreen(hwnd, x, y)` | — |
+| **ScreenToClient** | `ScreenToClient(hwnd, x, y)` | — |
+| **MoveWindow** | `MoveWindow(hwnd, x, y)` | — |
+| **SetWindowState** | `SetWindowState(hwnd, flag)` | 窗口状态操作(大漠 0-14 口径: 0 关闭/1 激活/2 最小化/3 最小化+释放内存/ |
+| **EnumWindow** | `EnumWindow(parent, title, class_name, filter_)` | 枚举窗口(parent=0 顶层, 否则枚举子窗口), 返回 "hwnd,hwnd,..."(无匹配空串)。 |
+| **EnumWindowByProcess** | `EnumWindowByProcess(process_name, title, class_name, filter_)` | 按进程名(如 "game.exe")枚举其所有窗口, 语义同 EnumWindow。 |
+| **EnumWindowByProcessId** | `EnumWindowByProcessId(pid, title, class_name, filter_)` | 按进程 ID 枚举窗口, 语义同 EnumWindow。 |
+| **GetWindowProcessId** | `GetWindowProcessId(hwnd)` | — |
+| **GetWindowProcessPath** | `GetWindowProcessPath(hwnd)` | — |
+| **GetForegroundWindow** | `GetForegroundWindow()` | — |
+
+#### 绑定与环境
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **BindWindow** | `BindWindow(hwnd, display, mouse, keypad, mode=0)` | 绑定窗口并选通道。返回 1 成功 / 0 失败(大漠语义)。 |
+| **UnBindWindow** | `UnBindWindow()` | 解绑并释放资源(大漠: 脚本退出时调用)。 |
+| **ForceUnBindWindow** | `ForceUnBindWindow(hwnd)` | 强制解绑指定窗口(宿主侧: 直接解绑本对象 dx; 他进程绑定不在范围)。 |
+| **GetBindWindow** | `GetBindWindow()` | 当前绑定的窗口句柄, 未绑定返回 0。 |
+| **IsBind** | `IsBind(hwnd)` | — |
+| **SwitchBindWindow** | `SwitchBindWindow(hwnd)` | 不解绑切换同进程窗口。 |
+| **EnableBind** | `EnableBind(enable)` | — |
+| **EnableFakeActive** | `EnableFakeActive(enable)` | 后台假激活(dx 通道)。 |
+| **EnableRealMouse** | `EnableRealMouse(enable, mousedelay, mousestep)` | 未实现: 拟人轨迹不在 MoveTo 层(那会连累拖拽插值), 在一步式点击里 |
+| **EnableRealKeypad** | `EnableRealKeypad(enable)` | — |
+| **EnableMouseSync** | `EnableMouseSync(enable, time_out)` | — |
+| **EnableKeypadSync** | `EnableKeypadSync(enable, time_out)` | — |
+| **EnableSpeedDx** | `EnableSpeedDx(enable)` | — |
+| **EnableIme** | `EnableIme(enable)` | — |
+| **EnableKeypadMsg** | `EnableKeypadMsg(enable)` | — |
+| **EnableMouseMsg** | `EnableMouseMsg(enable)` | — |
+| **EnableKeypadPatch** | `EnableKeypadPatch(enable)` | — |
+| **SetDisplayDelay** | `SetDisplayDelay(ms)` | — |
+| **SetDisplayRefreshDelay** | `SetDisplayRefreshDelay(ms)` | — |
+
+#### 其他
+
+| 命令 | 原型 | 说明 |
+|---|---|---|
+| **LockInput** | `LockInput(lock)` | 锁定/解锁物理键鼠输入(BlockInput, 锁定需管理员; 目标提权时宿主本就同级)。 |
+| **LockDisplay** | `LockDisplay(lock)` | — |
+| **GetFps** | `GetFps()` | 绑定窗口帧率(dx 图色: 一秒帧序号增量)。 |
+| **HackSpeed** | `HackSpeed(rate)` | — |
+| **SetAero** | `SetAero(enable)` | — |
+| **DownCpu** | `DownCpu(type_, rate)` | — |
+| **SetInputDm** | `SetInputDm(dm_id, rx, ry)` | — |
+| **SetPath** | `SetPath(path)` | — |
+| **Ver** | `Ver()` | — |
+| **GetLastError** | `GetLastError()` | — |
 
 ### 示例速查
 
@@ -177,24 +291,6 @@ dblclick(400, 300)
 ```python
 drag(450, 550, 450, 150)               # 列表上滑(按住拖)
 drag(100, 300, 500, 300, ms=500)       # 横拖, 500ms
-```
-
-**move**
-```python
-move(400, 300)                         # 悬停不点
-```
-
-**key**
-```python
-key("ctrl+s")
-key("enter")
-```
-
-**type_text**
-```python
-find_tap("聊天框.png")                      # 先点开输入框
-type_text("出售红药500金")               # 打字(中文可)
-# 老ANSI窗口打不进字: ctx.dm.SendString(hwnd, "文字", ime=True)
 ```
 
 **sleep**
@@ -219,27 +315,9 @@ while not stopped():               # F9 叫停了吗(挂机循环退出条件)
     打怪一轮()
 ```
 
-**find_color**
-```python
-hit = find_color("CC3333", tol=40, region=(0, 0, 900, 570))
-if hit: click(*hit[0])
-```
-
 **find_all**
 ```python
 for x, y in find_all("小地图图标.png"): click(x, y)
-```
-
-**find_multi_color**
-```python
-from icefrag.dsl import Pt
-MON = [Pt(0, 0, (51, 51, 204), 40), Pt(8, 0, (51, 51, 204), 40)]
-hit = find_multi_color((0, 0, 900, 640), MON)   # (x, y) | None
-```
-
-**exists**
-```python
-if exists("金币满.png"): key("b")
 ```
 
 **find_tap**

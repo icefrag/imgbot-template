@@ -1,0 +1,16 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>大漠直通 · 图色</h1><p>同名同参透传 imgbot DmSoft(仅 window 端, adb 端调用报错指路)。签名由生成器内省生成, 与代码不漂移。</p><table border=1><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>Capture</code></td><td><code>Capture(x1, y1, x2, y2, file, _)</code></td><td>截取区域存 BMP; 存档格式按扩展名(PNG/JPG 同 CapturePng/CaptureJpg)。</td></tr>
+<tr><td><code>CapturePng</code></td><td><code>CapturePng(x1, y1, x2, y2, file)</code></td><td>—</td></tr>
+<tr><td><code>CaptureJpg</code></td><td><code>CaptureJpg(x1, y1, x2, y2, file, quality=90)</code></td><td>—</td></tr>
+<tr><td><code>GetColor</code></td><td><code>GetColor(x, y, _bpp=0)</code></td><td>取色, 返回 "RRGGBB"(大漠格式)。</td></tr>
+<tr><td><code>GetColorBGR</code></td><td><code>GetColorBGR(x, y)</code></td><td>—</td></tr>
+<tr><td><code>CmpColor</code></td><td><code>CmpColor(x, y, color, sim=1.0)</code></td><td>比较坐标颜色。返回 1/0(大漠语义)。</td></tr>
+<tr><td><code>FindColor</code></td><td><code>FindColor(x1, y1, x2, y2, color, sim=1.0, dir=0, _)</code></td><td>找色, 返回 (x, y); 未找到 (-1, -1)。dir=0 从左到右从上到下。</td></tr>
+<tr><td><code>FindColorE</code></td><td><code>FindColorE(x1, y1, x2, y2, color, sim=1.0, dir=0)</code></td><td>—</td></tr>
+<tr><td><code>FindColorEx</code></td><td><code>FindColorEx(x1, y1, x2, y2, color, sim=1.0, dir=0)</code></td><td>—</td></tr>
+<tr><td><code>FindPic</code></td><td><code>FindPic(x1, y1, x2, y2, pic_name, delta_color='000000', sim=0.9, dir=0, _)</code></td><td>找图(pic_name 支持 "a.bmp|b.bmp" 多模板)。返回 (找到的序号, x, y);</td></tr>
+<tr><td><code>FindPicE</code></td><td><code>FindPicE(x1, y1, x2, y2, pic_name, delta_color='000000', sim=0.9, dir=0)</code></td><td>—</td></tr>
+<tr><td><code>FindMultiColor</code></td><td><code>FindMultiColor(x1, y1, x2, y2, first_color, offset_color, sim=1.0, dir=0, _)</code></td><td>多点找色: first_color="RRGGBB", offset_color="x|y|RRGGBB,...". 返回 (x, y)/(-1,-1)。</td></tr>
+<tr><td><code>GetColorNum</code></td><td><code>GetColorNum(x1, y1, x2, y2, color, sim=1.0)</code></td><td>—</td></tr>
+<tr><td><code>IsDisplayDead</code></td><td><code>IsDisplayDead(x1, y1, x2, y2, t=2)</code></td><td>区域 t 秒画面不变返回 1(卡屏检测; 区域裁剪后比对, 全屏死=区域死)。</td></tr>
+</table></body></html>

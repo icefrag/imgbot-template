@@ -1,16 +1,18 @@
-<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>5. task.py: 挂机逻辑</h1><p><code>main_task(ctx)</code> 是任务主体, 顶层命令 <code>from icefrag.dsl import *</code> 直接用:</p>
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>5. task.py: 挂机逻辑</h1><p><code>main_task(ctx)</code> 是任务主体, 顶层命令 <code>from icefrag.dsl import *</code> 直接用 —— 两层: <b>icefrag 命令</b>(组装层: 拟人键鼠/等待环/复合动作) + <b>大漠直通</b>(DmSoft 全量同名同参, 仅 window 端):</p>
 <pre>from icefrag.dsl import *
-
-RED = (51, 51, 204)                                  # #CC3333 的 BGR
-MON_PTS = [Pt(0, 0, RED, 40), Pt(8, 0, RED, 40)]     # 多点找色点阵
 
 def main_task(ctx):
     while not stopped():                             # 挂机循环自己写
-        hit = find_multi_color((0, 0, 900, 640), MON_PTS)
+        hit = wait_pic("怪.png", timeout=3000)       # 等怪 (x, y, 分) | None
         if not hit:
             log("场上无怪"); sleep((1000, 2000)); continue
-        click(*hit)
-        if wait_color_gone("CC3333-282828", timeout=10000):
+        click(*hit[:2])
+        if wait_pic_gone("怪.png", timeout=10000):   # 等击杀
             log("击杀"); shot("kill")                # 留痕到 logs/shots</pre>
+<p>大漠直通与大漠一字不差, 老脚本直接搬:</p>
+<pre>idx, x, y = FindPic(0, 0, 640, 480, "领取按钮.png") # 未找到 = (-1, -1, -1)
+if idx &gt;= 0:
+    MoveTo(x, y); LeftClick()
+SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口加 ime=True)</pre>
 <p><b>循环自己写, 返回 = 任务完成</b>: main_task 只被框架调用<b>一次</b>, 正常返回即整个 任务完成收口。要挂机就自己写 <code>while not stopped(): ...</code>(F9 叫停循环即退); 预期内的失败(没找到怪/点击落空)在循环里 try/except 掉——那是业务; 冒出去的异常 框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。</p>
-<p>命令权威表见本手册<b>三章</b>(签名由框架内省生成, 与代码不漂移)。 冷门动作走逃生舱: <code>ctx.ops</code>(图色门面)/<code>ctx.dm</code>(DmSoft 全量)/<code>ctx.device</code>(adb 方言)。</p></body></html>
+<p>命令权威表见本手册<b>三章</b>(签名由框架内省生成, 与代码不漂移)。 adb 方言与更冷门的动作走逃生舱: <code>ctx.ops</code>(图色门面)/<code>ctx.device</code>(adb 方言)。</p></body></html>

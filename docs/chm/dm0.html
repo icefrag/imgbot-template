@@ -1,0 +1,27 @@
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>大漠直通 · 键鼠</h1><p>同名同参透传 imgbot DmSoft(仅 window 端, adb 端调用报错指路)。签名由生成器内省生成, 与代码不漂移。</p><table border=1><tr><th>命令</th><th>原型</th><th>说明</th></tr>
+<tr><td><code>MoveTo</code></td><td><code>MoveTo(x, y)</code></td><td>移动虚拟光标(客户区坐标); 越出客户区矩形拒绝并返回 0(大漠反编译</td></tr>
+<tr><td><code>MoveR</code></td><td><code>MoveR(rx, ry)</code></td><td>—</td></tr>
+<tr><td><code>LeftClick</code></td><td><code>LeftClick()</code></td><td>—</td></tr>
+<tr><td><code>LeftDoubleClick</code></td><td><code>LeftDoubleClick()</code></td><td>—</td></tr>
+<tr><td><code>LeftDown</code></td><td><code>LeftDown()</code></td><td>—</td></tr>
+<tr><td><code>LeftUp</code></td><td><code>LeftUp()</code></td><td>—</td></tr>
+<tr><td><code>RightClick</code></td><td><code>RightClick()</code></td><td>—</td></tr>
+<tr><td><code>RightDown</code></td><td><code>RightDown()</code></td><td>—</td></tr>
+<tr><td><code>RightUp</code></td><td><code>RightUp()</code></td><td>—</td></tr>
+<tr><td><code>MiddleClick</code></td><td><code>MiddleClick()</code></td><td>—</td></tr>
+<tr><td><code>MiddleDown</code></td><td><code>MiddleDown()</code></td><td>—</td></tr>
+<tr><td><code>MiddleUp</code></td><td><code>MiddleUp()</code></td><td>—</td></tr>
+<tr><td><code>WheelDown</code></td><td><code>WheelDown()</code></td><td>—</td></tr>
+<tr><td><code>WheelUp</code></td><td><code>WheelUp()</code></td><td>—</td></tr>
+<tr><td><code>KeyPress</code></td><td><code>KeyPress(vk)</code></td><td>按键。windows 通道 = 带扫描码的消息按键(只达读消息的窗口过程, 轮询型</td></tr>
+<tr><td><code>KeyDown</code></td><td><code>KeyDown(vk)</code></td><td>—</td></tr>
+<tr><td><code>KeyUp</code></td><td><code>KeyUp(vk)</code></td><td>—</td></tr>
+<tr><td><code>KeyPressChar</code></td><td><code>KeyPressChar(key_str)</code></td><td>—</td></tr>
+<tr><td><code>KeyDownChar</code></td><td><code>KeyDownChar(key_str)</code></td><td>—</td></tr>
+<tr><td><code>KeyUpChar</code></td><td><code>KeyUpChar(key_str)</code></td><td>—</td></tr>
+<tr><td><code>KeyPressStr</code></td><td><code>KeyPressStr(key_str, delay=50)</code></td><td>—</td></tr>
+<tr><td><code>SendString</code></td><td><code>SendString(hwnd, str_, ime=False)</code></td><td>向指定窗口打字(与绑定通道无关, 大漠语义)。三条键鼠通道都实现</td></tr>
+<tr><td><code>SendPaste</code></td><td><code>SendPaste(hwnd)</code></td><td>向绑定窗口模拟 Ctrl+V(大漠语义: 粘贴剪贴板现状, 不改写内容)。</td></tr>
+<tr><td><code>GetCursorPos</code></td><td><code>GetCursorPos()</code></td><td>虚拟光标位置(客户区坐标)。大漠语义: 绑定了键鼠通道返回注入跟踪位</td></tr>
+<tr><td><code>LockMouseRect</code></td><td><code>LockMouseRect(x1, y1, x2, y2)</code></td><td>—</td></tr>
+</table></body></html>

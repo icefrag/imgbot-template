@@ -36,12 +36,12 @@
 			</OBJECT>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="三、DSL 语法">
+		<param name="Name" value="三、命令清单">
 		<param name="Local" value="index.html#dsl">
 		</OBJECT>
 		<UL>
 			<LI> <OBJECT type="text/sitemap">
-			<param name="Name" value="键鼠">
+			<param name="Name" value="键鼠(拟人)">
 			</OBJECT>
 			<UL>
 	<LI> <OBJECT type="text/sitemap">
@@ -57,20 +57,8 @@
 	<param name="Local" value="c0/p0-2.html">
 	</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
-	<param name="Name" value="move">
-	<param name="Local" value="c0/p0-3.html">
-	</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
-	<param name="Name" value="key">
-	<param name="Local" value="c0/p0-4.html">
-	</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
-	<param name="Name" value="type_text">
-	<param name="Local" value="c0/p0-5.html">
-	</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="sleep">
-	<param name="Local" value="c0/p0-6.html">
+	<param name="Local" value="c0/p0-3.html">
 	</OBJECT>
 			</UL>
 			<LI> <OBJECT type="text/sitemap">
@@ -95,20 +83,8 @@
 			</OBJECT>
 			<UL>
 	<LI> <OBJECT type="text/sitemap">
-	<param name="Name" value="find_color">
-	<param name="Local" value="c2/p2-0.html">
-	</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="find_all">
-	<param name="Local" value="c2/p2-1.html">
-	</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
-	<param name="Name" value="find_multi_color">
-	<param name="Local" value="c2/p2-2.html">
-	</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
-	<param name="Name" value="exists">
-	<param name="Local" value="c2/p2-3.html">
+	<param name="Local" value="c2/p2-0.html">
 	</OBJECT>
 			</UL>
 			<LI> <OBJECT type="text/sitemap">
@@ -190,6 +166,51 @@
 	<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="progress">
 	<param name="Local" value="c7/p7-0.html">
+	</OBJECT>
+			</UL>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="大漠直通 · 键鼠">
+			</OBJECT>
+			<UL>
+	<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="命令表">
+	<param name="Local" value="dm0.html">
+	</OBJECT>
+			</UL>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="大漠直通 · 图色">
+			</OBJECT>
+			<UL>
+	<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="命令表">
+	<param name="Local" value="dm1.html">
+	</OBJECT>
+			</UL>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="大漠直通 · 窗口">
+			</OBJECT>
+			<UL>
+	<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="命令表">
+	<param name="Local" value="dm2.html">
+	</OBJECT>
+			</UL>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="大漠直通 · 绑定与环境">
+			</OBJECT>
+			<UL>
+	<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="命令表">
+	<param name="Local" value="dm3.html">
+	</OBJECT>
+			</UL>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="大漠直通 · 其他">
+			</OBJECT>
+			<UL>
+	<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="命令表">
+	<param name="Local" value="dm4.html">
 	</OBJECT>
 			</UL>
 		</UL>

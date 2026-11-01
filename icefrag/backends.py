@@ -232,6 +232,9 @@ def unbind(ctx: Ctx) -> None:
     """收口(永远执行, 崩溃也执行)。"""
     try:
         if ctx.backend == "window" and ctx.dm is not None:
+            lock = getattr(ctx.dm, "LockInput", None)
+            if lock:                             # LockInput 保险丝: 脚本锁了
+                lock(0)                          # 输入没解锁, 收口强制解锁
             ctx.dm.UnBindWindow()
         elif ctx.device is not None:
             ctx.device.close()
