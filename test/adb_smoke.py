@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""adb 端冒烟: 发现设备 → bind_adb_backend → DSL 全链(截图/找色/点击/key/
+"""adb 端冒烟: 发现设备 → bind_adb_backend → DSL 全链(截图/找色/点击/键码/
 等待) → 解绑。需要模拟器或真机在线(adb devices 可见)。
 
 用法: uv run python test/adb_smoke.py [serial]   (缺省取第一台)
@@ -46,14 +46,14 @@ def main() -> int:
     frame = ctx.dm._screen()
     cy, cx = h // 2, w // 2
     b, g, r = (int(v) for v in frame[cy, cx])
-    hits = dsl.find_color(f"{r:02X}{g:02X}{b:02X}", tol=8)
+    hits = ctx.ops.find_color(f"{r:02X}{g:02X}{b:02X}", tol=8)
     assert hits, "find_color 全屏没找到自己取的色"
-    print(f"[4] find_color OK(命中 {len(hits)} 处, 中心色 #{r:02X}{g:02X}{b:02X})")
+    print(f"[4] ops.find_color OK(命中 {len(hits)} 处, 中心色 #{r:02X}{g:02X}{b:02X})")
 
     dsl.click(cx, cy)                  # 点桌面中心(无害)
     print("[5] click→tap OK")
-    dsl.key("home")
-    print("[6] key('home')→keyevent OK")
+    ctx.device.keyevent(4)             # KEYCODE_HOME
+    print("[6] ctx.device.keyevent(HOME) OK")
     ok = dsl.wait_color(f"{r:02X}{g:02X}{b:02X}", region=(cx - 50, cy - 50,
                                                           cx + 50, cy + 50),
                         timeout=3000)

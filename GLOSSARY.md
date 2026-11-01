@@ -21,7 +21,7 @@ _Avoid_: 拷贝项目、子项目、寄生项目(仅指旧 test/auto_farm 的临
 ### 命令
 
 **命令清单(command list)**:
-task.py 星号面(`from icefrag.dsl import *`)的全部内容 = icefrag 命令 + 大漠直通;权威表在开发手册三章(签名内省生成, 与代码不漂移)。
+task.py 星号面(`from icefrag.dsl import *`)的全部内容 = icefrag 命令(双端通用) + 大漠直通(仅 window 端);权威表在开发手册三章(PC 窗口)/四章(手机 adb, 含 ctx.device 方言表),签名内省生成, 与代码不漂移。
 _Avoid_: DSL(旧称, 已废)、动词表(过窄)
 
 **icefrag 命令**:

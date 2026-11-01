@@ -1,2 +1,7 @@
-<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>打包 exe 发给别人</h1><pre>uv run build_exe.py</pre>
-<p>产出 <code>dist/&lt;你的名&gt;-v&lt;版本&gt;.zip</code>: 目标机<b>零 Python</b>, 解压即用; <code>templates/</code> 与 <code>scaffold.toml</code> 摆 exe 旁, 用户可自行调参。 <b>bin/ 注入件会被 Defender 报毒</b>, 目标机需把解压目录加入杀毒排除——发给人时记得交代。</p></body></html>
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>端差异与注意</h1><li><b>坐标 = 设备屏幕坐标</b>(分辨率在模拟器设置里定); 素材从 <code>logs/shots/</code></li>
+<li><b>拟人语义在 adb 端</b>: 无鼠标轨迹概念, <code>click</code> = 停顿前摇+落点抖动+tap;</li>
+<li><b>停止</b>: adb 端用中控台行按钮<b>停止</b>(<code>stopped()</code>/<code>sleep</code> 可中断同一机制,</li>
+<li><b>通道/收编/dx 开关全是 window 端配置</b>, adb 端天然后台不占键鼠,</li>
+<li><b>打字</b>: <code>ctx.device.type_text("中文")</code>(ADBKeyboard 广播), 对应 window 端</li>
+<li><code>go</code>/<code>at</code> 导航、OCR 识字、等待族与 PC 端完全同构, 图色帧源自动切设备截屏。</li>
+<p>留痕截图裁——同源裁材在 adb 端同样必守(帧来自设备截屏, 与电脑屏幕不同源)。 <code>drag</code> = 原生 swipe; <code>human=False</code> 只去掉前摇。贝塞尔轨迹是 window 端专属。 只是没有热键); 表里说明列写的 F9 指 window 端热键, 语义等同。 设置弹窗里也不会出现它们。 的 <code>SendString</code> 直通。</p></body></html>

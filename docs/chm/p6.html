@@ -1,1 +1,6 @@
-<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>总说明</h1><p>框架自己的配置在 <code>scaffold.toml</code>(与业务配置 business.py 分离): 通道/热键/拟人键鼠/ 运行策略/外观。改完重启中控台生效; 下表<b>默认值与类型由框架内省生成</b>, 说明为人工 注释, 键位增删会触发生成器对账报错——不会漂移。</p></body></html>
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>adb 端上手</h1><p><b>三步</b>:</p>
+<li><code>scaffold.toml</code> 改 <code>backend = "adb"</code>(可选: <code>adb_serials</code> 预置白名单,</li>
+<li>启动模拟器/插真机, 终端 <code>adb devices</code> 能看到它;</li>
+<li><code>uv run console.py</code> —— 在线设备<b>整表自动入列</b>(不自动启动), 表格按行</li>
+<p>空=收所有在线设备); 启动/停止, 📷 开实时预览, 双击改名; 后开的模拟器点<b>扫描设备</b>按钮补捞。</p>
+<p>热键收编(F9)是 window 端专属概念, adb 端没有也不需要。任务代码(task.py) 与 PC 端<b>同一套命令</b>——换端不改脚本, 差异全在下面两张表里。</p></body></html>

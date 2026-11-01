@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 """icefrag 开发手册生成器 → 三产物(给脚本开发者, 骨架 zip 的 README 即 md 版)。
 
-- docs/icefrag开发手册.md    给 AI / 骨架 README(全文: 上手+业务+命令清单+配置+通道+保障+打包+FAQ)
+- docs/icefrag开发手册.md    给 AI / 骨架 README(全文: 上手+业务+PC 窗口开发+
+  手机(adb)开发+配置+通道+保障+打包+FAQ)
 - docs/icefrag开发手册.html  单文件版(浏览器直接开)
 - docs/icefrag开发手册.chm   编译版(便携 hhc 在 D:/tools/hhw; 内部路径 ASCII, 名字 GBK)
 
 防漂移(违者直接退出, 与代码对账):
 - 命令清单: icefrag 命令签名内省 icefrag/dsl.py, 大漠直通签名内省 imgbot
   DmSoft 本尊; GROUPS/DM_GROUPS 漏命令/多命令报错;
+- adb 方言表(四章): 签名内省 imgbot AdbTarget(ctx.device 本尊);
+  DEVICE_DESC 少写/多写报错;
 - 配置表: 默认值/类型从 ScaffoldConfig dataclass 内省; CFG_DESC 少写/多写键报错。
 散文章节手排 PROSE(唯一文档源, 手写手册已退役)。
 
@@ -28,6 +31,7 @@ sys.path.insert(0, str(ROOT))
 
 from icefrag import dsl, settings as scfg  # noqa: E402
 from imgbot.dmsoft import DmSoft  # noqa: E402
+from imgbot.target import AdbTarget  # noqa: E402
 
 DOCS = ROOT / "docs"
 TITLE = "icefrag 开发手册"
@@ -73,6 +77,19 @@ DM_GROUPS = [
     ("其他", ["LockInput", "LockDisplay", "GetFps", "HackSpeed", "SetAero",
             "DownCpu", "SetInputDm", "SetPath", "Ver", "GetLastError"]),
 ]
+
+# ==================== adb 方言表(签名内省 imgbot AdbTarget = ctx.device) ====================
+DEVICE_DESC = {
+    "screenshot": "截当前设备帧(BGR ndarray); dsl 图色族同源, 留痕用 `shot()`",
+    "save_screenshot": "截屏存文件, 返回 (宽, 高)",
+    "tap": "裸点击(无拟人; 业务点击用 dsl `click`, 它管前摇+抖动)",
+    "swipe": "原生滑动(x1,y1→x2,y2, ms)——dsl `drag` 的 adb 底座",
+    "keyevent": "安卓键码按键(4=HOME 3=BACK 66=回车; 全表见 adb KEYCODE)",
+    "shell": "adb shell 直通, 返回 str(dumpsys 类冷门事走这里)",
+    "type_text": "中文注入(ADBKeyboard 广播); 首次自动装输入法, 用完自动还原",
+    "start_app": "拉起应用(包名+Activity; 开局/重登线)",
+    "stop_app": "强杀应用(包名; 熔断 on_fuse 重启游戏线)",
+}
 
 EXAMPLES = {
     "click": 'click(231, 347)                       # 拟人点击(轨迹+停顿+抖动), 默认见 scaffold.toml\nclick(231, 347, human=False)            # 瞬移急点(速度优先)\nclick(231, 347, jitter=0, settle=200)  # 精确落点, 到位停 200ms',
@@ -132,6 +149,9 @@ CFG_GROUPS = [
 ]
 
 CHANNELS_MD = """
+本章仅 **window 端**适用; adb 端天然全后台(截屏=adb screencap, 输入=adb shell
+input), 无通道概念——display/mouse/keypad 等配置不参与(见四章)。
+
 | 通道 | 取值 | 前台/后台 | 占真键鼠 | 适用与坑 |
 |---|---|---|---|---|
 | display | `normal` | 前台 | — | 直接抓屏, 目标须可见不被遮挡, 最快最稳 |
@@ -188,7 +208,8 @@ uv run console.py
 
 中控台是**唯一入口**(单开多开都是它): 鼠标**悬停**在目标窗口上按 **F9** →
 收编进表格并启动; 表格行按钮启停; 右侧日志流; 再按 F9 收编下一个即多开。
-adb 端(模拟器/真机)自动发现设备, 无需收编。
+adb 端(模拟器/真机)是另一套打法: 在线设备**整表自动入列**、按行启动,
+没有热键收编——模拟器/真机用户**直接跳四章**。
 """),
     ]),
     ("二、写你的业务", [
@@ -246,8 +267,9 @@ SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口�
 预期内的失败(没找到怪/点击落空)在循环里 try/except 掉——那是业务; 冒出去的异常
 框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。
 
-命令权威表见本手册**三章**(签名由框架内省生成, 与代码不漂移)。
-adb 方言与更冷门的动作走逃生舱: `ctx.ops`(图色门面)/`ctx.device`(adb 方言)。
+命令权威表: PC 窗口端见**三章**, 手机(adb)端见**四章**(签名由框架内省生成,
+与代码不漂移)。更冷门的动作走逃生舱: `ctx.ops`(图色门面, 双端同构)/
+`ctx.device`(adb 方言, 表见四章)。
 """),
         ("6. 图色素材", """
 素材就是 PNG 和色值, 用你顺手的截图工具做, 放进 `templates/` 即可:
@@ -259,17 +281,46 @@ adb 方言与更冷门的动作走逃生舱: `ctx.ops`(图色门面)/`ctx.device
 """),
     ]),
 ]
-PROSE_LATE = [   # 四~八章(配置表/通道表由内省与常量拼装, 散文在此)
-    ("四、全局配置", [
+PROSE_LATE = [   # 四~九章(手机/配置章含内省表, 通道表由常量拼装, 散文在此)
+    ("四、手机(adb)开发", [
+        ("adb 端上手", """
+**三步**:
+
+1. `scaffold.toml` 改 `backend = "adb"`(可选: `adb_serials` 预置白名单,
+   空=收所有在线设备);
+2. 启动模拟器/插真机, 终端 `adb devices` 能看到它;
+3. `uv run console.py` —— 在线设备**整表自动入列**(不自动启动), 表格按行
+   启动/停止, 📷 开实时预览, 双击改名; 后开的模拟器点**扫描设备**按钮补捞。
+
+热键收编(F9)是 window 端专属概念, adb 端没有也不需要。任务代码(task.py)
+与 PC 端**同一套命令**——换端不改脚本, 差异全在下面两张表里。
+"""),
+        ("命令一览(22 个, 双端同构)", None),   # build 期由内省填充
+        ("adb 方言(ctx.device)", None),       # build 期由内省填充
+        ("端差异与注意", """
+- **坐标 = 设备屏幕坐标**(分辨率在模拟器设置里定); 素材从 `logs/shots/`
+  留痕截图裁——同源裁材在 adb 端同样必守(帧来自设备截屏, 与电脑屏幕不同源)。
+- **拟人语义在 adb 端**: 无鼠标轨迹概念, `click` = 停顿前摇+落点抖动+tap;
+  `drag` = 原生 swipe; `human=False` 只去掉前摇。贝塞尔轨迹是 window 端专属。
+- **停止**: adb 端用中控台行按钮**停止**(`stopped()`/`sleep` 可中断同一机制,
+  只是没有热键); 表里说明列写的 F9 指 window 端热键, 语义等同。
+- **通道/收编/dx 开关全是 window 端配置**, adb 端天然后台不占键鼠,
+  设置弹窗里也不会出现它们。
+- **打字**: `ctx.device.type_text("中文")`(ADBKeyboard 广播), 对应 window 端
+  的 `SendString` 直通。
+- `go`/`at` 导航、OCR 识字、等待族与 PC 端完全同构, 图色帧源自动切设备截屏。
+"""),
+    ]),
+    ("五、全局配置", [
         ("总说明", """
 框架自己的配置在 `scaffold.toml`(与业务配置 business.py 分离): 通道/热键/拟人键鼠/
 运行策略/外观。改完重启中控台生效; 下表**默认值与类型由框架内省生成**, 说明为人工
 注释, 键位增删会触发生成器对账报错——不会漂移。"""),
     ]),
-    ("五、通道选择速查", [
+    ("六、通道选择速查(仅 window 端)", [
         ("能力矩阵", CHANNELS_MD),
     ]),
-    ("六、长跑保障", [
+    ("七、长跑保障", [
         ("机制表", """
 | 机制 | 干什么 | 哪里调 |
 |---|---|---|
@@ -280,7 +331,7 @@ PROSE_LATE = [   # 四~八章(配置表/通道表由内省与常量拼装, 散�
 | 截图留痕 | `shot("标签")` 与失败自动截图, 都进 logs/shots | 自动 |
 """),
     ]),
-    ("七、打包与升级", [
+    ("八、打包与升级", [
         ("打包 exe 发给别人", """
 ```bash
 uv run build_exe.py
@@ -300,7 +351,7 @@ uv run build_exe.py
 不领新版就继续用旧的, 互不影响。
 """),
     ]),
-    ("八、常见问题", [
+    ("九、常见问题", [
         ("FAQ", """
 (本章留白, 条目随实战反馈逐条补录。)
 """),
@@ -430,6 +481,39 @@ def dm_table_html(names) -> str:
     return "\n".join(rows)
 
 
+# ==================== 手机章生成体(四章: 双视图命令表 + adb 方言表) ====================
+def _dev_sig(name: str) -> str:
+    sig = inspect.signature(getattr(AdbTarget, name))
+    params = list(sig.parameters.values())[1:]     # 去 self(类方法内省带上)
+    parts = [f"{p.name}{'' if p.default is inspect.Parameter.empty else f'={p.default!r}'}"
+             for p in params]
+    return f"{name}({', '.join(parts)})"
+
+
+def mobile_cmd_md() -> str:
+    """四章·命令一览: 同一份内省向 adb 端再发一份表(源头一处, 不漂移)。"""
+    out = ["22 个 icefrag 命令 adb 端**全体可用**, 签名/返回与三章一字不差"
+           "(同一处内省生成); 端行为差异已写进说明列。",
+           "**大漠直通在 adb 端不可用**(调用即报错指路)。"
+           "用法示例见三章示例速查——命令同一套。", ""]
+    for cat, names in GROUPS:
+        out += [f"**{cat}**", "", "| 命令 | 原型 | 说明 |", "|---|---|---|"]
+        out += [f"| **{n}** | `{_sig(n)}` | {_brief(n)} |" for n in names]
+        out.append("")
+    return "\n".join(out)
+
+
+def device_md() -> str:
+    """四章·adb 方言表: ctx.device(=imgbot AdbTarget)公有方法, 签名内省+说明手写。"""
+    head = ("`ctx.device`(= imgbot `AdbTarget`)是 adb 端独有的逃生舱: 安卓键码/"
+            "拉起杀应用/shell/原生输入这些 dsl 命令面之外的事。序列号取 "
+            "`ctx.device.serial`。**拟人点击别绕过 dsl `click`**(它管前摇+抖动)。")
+    rows = ["| 方言 | 原型 | 说明 |", "|---|---|---|"]
+    rows += [f"| **{n}** | `{_dev_sig(n)}` | {DEVICE_DESC[n]} |"
+             for n in sorted(DEVICE_DESC)]
+    return head + "\n\n" + "\n".join(rows)
+
+
 def _head() -> str:
     return ("<html><head><meta charset='utf-8'><style>"
             "body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}"
@@ -506,6 +590,17 @@ def build():
                  f"多写 {set(dm_listed) - dm_public}")
     if sorted(dm_public) != dsl.DM_PASSTHROUGH:
         sys.exit("dsl.DM_PASSTHROUGH 与 DmSoft 内省不一致")
+    adb_public = {n for n in dir(AdbTarget)
+                  if not n.startswith("_") and callable(getattr(AdbTarget, n))}
+    if set(DEVICE_DESC) != adb_public:
+        sys.exit(f"DEVICE_DESC 与 AdbTarget 公有方法不一致: "
+                 f"少写 {adb_public - set(DEVICE_DESC)} / "
+                 f"多写 {set(DEVICE_DESC) - adb_public}")
+    # 四章两节生成体回填(None 占位 → 内省表; 就地改写, 后续渲染路径通吃)
+    PROSE_LATE[0] = ("四、手机(adb)开发", [
+        (sec, mobile_cmd_md() if sec.startswith("命令一览")
+         else device_md() if sec.startswith("adb 方言") else (body or ""))
+        for sec, body in PROSE_LATE[0][1]])
     fields = {f.name for f in dataclasses.fields(scfg.ScaffoldConfig)}
     if set(CFG_DESC) != fields:
         sys.exit(f"CFG_DESC 与 ScaffoldConfig 键不一致: "
@@ -529,7 +624,7 @@ def build():
             page_no += 1
             pages[fn] = _head() + f"<h1>{_inline(sec)}</h1>" + _md(body) + "</body></html>"
             kids.append((sec, fn))
-        if chap == "四、全局配置":                # 配置章: 每组一节(内省表)
+        if chap == "五、全局配置":                # 配置章: 每组一节(内省表)
             for gi, (gname, keys) in enumerate(CFG_GROUPS):
                 fn = f"cfg{gi}.html"
                 pages[fn] = (_head() + f"<h1>{_inline(gname)}</h1>"
@@ -555,17 +650,20 @@ def build():
                        "报错指路)。签名由生成器内省生成, 与代码不漂移。</p>"
                      + dm_table_html(names) + "</body></html>")
         dsl_kids.append((f"大漠直通 · {cat}", [("命令表", fn)]))
-    toc.insert(2, ("三、命令清单", None))          # 特殊: 嵌套组, 单独渲染
+    toc.insert(2, ("三、PC 窗口开发", None))      # 特殊: 嵌套组, 单独渲染
 
     # -- md 产物(骨架 README / AI 权威版) --
     md = [f"# {TITLE}", "",
-          "> 上手 → 业务 → 命令清单 → 配置 → 通道 → 保障 → 打包 → FAQ。",
+          "> 上手 → 业务 → PC 窗口开发 → 手机(adb)开发 → 配置 → 通道(仅 window 端)"
+          " → 保障 → 打包 → FAQ。",
           "> 命令签名与配置默认值由 `scripts/build_docs.py` 内省生成, 与代码不漂移。", ""]
     for chap, secs in PROSE:
         md.append(f"## {chap}")
         for sec, body in secs:
             md += [f"### {sec}", body.strip(), ""]
-    md += ["## 三、命令清单", ""]
+    md += ["## 三、PC 窗口开发", "",
+           "22 个 icefrag 命令(双端通用; 模拟器/真机端见**四章**) + 85 个大漠直通"
+           "(仅 window 端)。签名由生成器内省生成, 与代码不漂移。", ""]
     for cat, names in GROUPS:
         md += [f"### {cat}", "", "| 命令 | 原型 | 说明 |", "|---|---|---|"]
         for n in names:
@@ -579,10 +677,14 @@ def build():
         for n in names:
             if n in EXAMPLES:
                 md += [f"**{n}**", "```python", EXAMPLES[n], "```", ""]
-    md += ["## 四、全局配置(scaffold.toml)", ""]
+    for chap, secs in PROSE_LATE[:1]:            # 四、手机(adb)开发(含两节内省表)
+        md.append(f"## {chap}")
+        for sec, body in secs:
+            md += [f"### {sec}", body.strip(), ""]
+    md += ["## 五、全局配置(scaffold.toml)", ""]
     for gname, keys in CFG_GROUPS:
         md += [f"### {gname}", "", cfg_md(keys), ""]
-    for chap, secs in PROSE_LATE[1:]:
+    for chap, secs in PROSE_LATE[2:]:
         md.append(f"## {chap}")
         for sec, body in secs:
             md += [f"### {sec}", body.strip(), ""]
@@ -674,7 +776,7 @@ def build():
                     continue
                 for sec, body in ss:
                     single += [f"<h3>{_inline(sec)}</h3>", _md(body)]
-            if chap == "四、全局配置":
+            if chap == "五、全局配置":
                 for gname, keys in CFG_GROUPS:
                     single += [f"<h3>{_inline(gname)}</h3>", cfg_table_html(keys)]
     single.append("</body></html>")

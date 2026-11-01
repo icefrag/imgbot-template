@@ -178,9 +178,15 @@ class Console:
         self._toast_win: tk.Toplevel | None = None
         self.aliases: dict = _load_aliases()        # hwnd→别名(改名持久化)
         self.workers: dict[str, Worker] = {}      # ident → Worker
-        self.hotkey = HotkeyListener(hotkey_vk(self.gcfg.hotkey), self.on_hotkey)
+        self.hotkey = None                        # adb 端无热键(设备按行启动)
+        if self.gcfg.backend == "window":
+            self.hotkey = HotkeyListener(hotkey_vk(self.gcfg.hotkey),
+                                         self.on_hotkey)
         self._build()
-        self.hotkey.start()
+        if self.hotkey:
+            self.hotkey.start()
+        if self.gcfg.backend == "adb":
+            self.scan_adb_devices()
         self.root.after(100, self._pump_log)
         self.root.after(500, self._refresh_rows)
 
@@ -196,8 +202,11 @@ class Console:
         top.pack(fill="x")
         ttk.Button(top, text="⚙ 设置", command=self._open_settings,
                    bootstyle="secondary-outline").pack(side="left")
-        self.hotkey_lbl = ttk.Label(
-            top, text=f"热键: {hotkey_label(self.gcfg.hotkey)} 收编/停止  ●监听中")
+        if self.gcfg.backend == "window":
+            self.hotkey_lbl = ttk.Label(
+                top, text=f"热键: {hotkey_label(self.gcfg.hotkey)} 收编/停止  ●监听中")
+        else:
+            self.hotkey_lbl = ttk.Label(top, text="adb 模式 · 设备按行启动")
         self.hotkey_lbl.pack(side="left", padx=12)
         self.status_lbl = ttk.Label(top, text="0 运行")
         self.status_lbl.pack(side="right")
@@ -226,6 +235,9 @@ class Console:
                    command=self._stop_selected).pack(side="left", padx=2)
         ttk.Button(btns, text="移除", width=8, bootstyle="secondary-outline",
                    command=self._remove_selected).pack(side="left", padx=2)
+        if self.gcfg.backend == "adb":           # 补捞后开的模拟器(不占热键)
+            ttk.Button(btns, text="扫描设备", width=10, bootstyle="info-outline",
+                       command=self.scan_adb_devices).pack(side="left", padx=2)
 
         self.logbox = tk.Text(self.right_f, bg="#1b1f24", fg="#d0d0d0", state="disabled",
                               wrap="word", font=("Consolas", 9))
@@ -263,6 +275,25 @@ class Console:
         else:
             w.start()
             self.notifyq.put(("start", w.title))
+
+    def scan_adb_devices(self):
+        """adb 端设备扫描: 在线设备建行入表(不启动), 已入表跳过。
+        启动期与"扫描设备"按钮共用; 移除的行重扫会回来(设备仍在线)。"""
+        try:
+            serials = backends.list_adb_serials(self.gcfg)
+        except Exception as e:
+            self.logq.put(("adb", f"设备扫描失败: {e}(adb 在 PATH 吗?)", "error"))
+            return
+        new = 0
+        for s in serials:
+            if s in self.workers:
+                continue
+            self.workers[s] = Worker(s, "adb", self.gcfg,
+                                     self.business_cfg_value, self.logq,
+                                     self.aliases.get(s) or s)
+            new += 1
+        self.logq.put(("adb", f"扫描: 在线 {len(serials)} 台, 新入表 {new}"
+                             "(表格按行启动)", "info"))
 
     def _toggle_selected(self):
         sel = self.tree.selection()
@@ -429,16 +460,21 @@ class Console:
             sizes = ["[960, 600]", "[1280, 800]", "[1600, 900]", "[1920, 1080]"]
             themes = ["darkly", "superhero", "cyborg", "solar",
                       "cosmo", "flatly", "litera", "minty"]
-            rows = [
-                ("hotkey", "启动热键", hotkey_choices()),
-                ("display", "图色通道", disp_chans),
-                ("mouse", "鼠标通道", mouse_chans),
-                ("keypad", "键盘通道", kp_chans),
-                ("fake_active", "后台假激活", yn),
-                ("hook_keystate", "键状态钩子", yn),
-                ("hide_module", "隐藏模块", yn),
-                ("theme", "主题", themes), ("window_size", "窗体尺寸", sizes),
-                ("left_ratio", "左列宽度比例", None)]
+            if self.gcfg.backend == "window":    # 通道/热键/经典组合皆 window 专属
+                rows = [
+                    ("hotkey", "启动热键", hotkey_choices()),
+                    ("display", "图色通道", disp_chans),
+                    ("mouse", "鼠标通道", mouse_chans),
+                    ("keypad", "键盘通道", kp_chans),
+                    ("fake_active", "后台假激活", yn),
+                    ("hook_keystate", "键状态钩子", yn),
+                    ("hide_module", "隐藏模块", yn),
+                    ("theme", "主题", themes), ("window_size", "窗体尺寸", sizes),
+                    ("left_ratio", "左列宽度比例", None)]
+            else:
+                rows = [("theme", "主题", themes),
+                        ("window_size", "窗体尺寸", sizes),
+                        ("left_ratio", "左列宽度比例", None)]
             for row, (key, label, choices) in enumerate(rows):
                 cell = ttk.Frame(f1)
                 cell.grid(row=row, column=0, sticky="w", pady=2)
@@ -465,26 +501,28 @@ class Console:
                         row=row, column=1, pady=2)
                 entries[key] = var
             # 经典组合: 症状对号入座, 点一条即把上方下拉调成该配方(保存才写回)
-            box = ttk.Labelframe(f1, text="经典组合 · 点一条即套用", padding=(8, 6))
-            box.grid(row=len(rows), column=0, columnspan=2, sticky="we", pady=(10, 0))
-            status = ttk.Label(box, text="对号入座: 症状在哪条, 点哪条",
-                               bootstyle="secondary")
+            # (仅 window 端——adb 端无通道概念, 无组合可套)
+            if self.gcfg.backend == "window":
+                box = ttk.Labelframe(f1, text="经典组合 · 点一条即套用", padding=(8, 6))
+                box.grid(row=len(rows), column=0, columnspan=2, sticky="we", pady=(10, 0))
+                status = ttk.Label(box, text="对号入座: 症状在哪条, 点哪条",
+                                   bootstyle="secondary")
 
-            def _apply_combo(name, combo):
-                entries["display"].set(combo["display"])
-                entries["mouse"].set(combo["mouse"])
-                entries["keypad"].set(combo["keypad"])
-                entries["fake_active"].set("是" if combo.get("fake_active") else "否")
-                entries["hook_keystate"].set("是" if combo.get("hook_keystate") else "否")
-                entries["hide_module"].set("否")
-                status.configure(text=f"已套用: {name} · 点保存才写回")
+                def _apply_combo(name, combo):
+                    entries["display"].set(combo["display"])
+                    entries["mouse"].set(combo["mouse"])
+                    entries["keypad"].set(combo["keypad"])
+                    entries["fake_active"].set("是" if combo.get("fake_active") else "否")
+                    entries["hook_keystate"].set("是" if combo.get("hook_keystate") else "否")
+                    entries["hide_module"].set("否")
+                    status.configure(text=f"已套用: {name} · 点保存才写回")
 
-            for i, (name, combo) in enumerate(_CLASSIC_COMBOS):
-                ttk.Button(box, text=f"{name}   →   {_combo_recipe(combo)}",
-                           bootstyle="secondary-outline",
-                           command=lambda n=name, c=combo: _apply_combo(n, c)
-                           ).grid(row=i, column=0, sticky="we", pady=1)
-            status.grid(row=len(_CLASSIC_COMBOS), column=0, sticky="w", pady=(4, 0))
+                for i, (name, combo) in enumerate(_CLASSIC_COMBOS):
+                    ttk.Button(box, text=f"{name}   →   {_combo_recipe(combo)}",
+                               bootstyle="secondary-outline",
+                               command=lambda n=name, c=combo: _apply_combo(n, c)
+                               ).grid(row=i, column=0, sticky="we", pady=1)
+                status.grid(row=len(_CLASSIC_COMBOS), column=0, sticky="w", pady=(4, 0))
         # Tab2: 业务层(读 FIELD_META 自动生成; kind: "entry" | "combo:a|b|c";
         # bool 字段自动转"是/否"下拉, 不让用户输 true/false)
         f2 = ttk.Frame(nb, padding=10)
@@ -518,15 +556,17 @@ class Console:
                 v = var.get().lower() if k == "hotkey" else var.get()
                 setattr(self.gcfg, k, _coerce(getattr(self.gcfg, k), v))
             settings.save(self.gcfg)
-            try:                          # 热应用: 主题/尺寸/比例/热键立即生效
+            try:                          # 热应用: 主题/尺寸/比例立即生效
                 self.root.style.theme_use(self.gcfg.theme)
                 self._relayout()
-                self.hotkey.stop()        # 热重绑: 停旧监听, 新键立刻上岗
-                self.hotkey = HotkeyListener(hotkey_vk(self.gcfg.hotkey),
-                                             self.on_hotkey)
-                self.hotkey.start()
-                self.hotkey_lbl.config(
-                    text=f"热键: {hotkey_label(self.gcfg.hotkey)} 收编/停止  ●监听中")
+                if self.hotkey is not None:  # 热重绑: 停旧监听, 新键立刻上岗
+                    self.hotkey.stop()
+                    self.hotkey = HotkeyListener(hotkey_vk(self.gcfg.hotkey),
+                                                 self.on_hotkey)
+                    self.hotkey.start()
+                    self.hotkey_lbl.config(
+                        text=f"热键: {hotkey_label(self.gcfg.hotkey)} "
+                             f"收编/停止  ●监听中")
             except Exception:
                 pass
             for k, var in biz_vars.items():
@@ -548,7 +588,8 @@ class Console:
         return self._biz
 
     def _on_close(self):
-        self.hotkey.stop()
+        if self.hotkey is not None:
+            self.hotkey.stop()
         for w in self.workers.values():
             w.stop(join_s=2.0)
         self.root.destroy()

@@ -1,5 +1,1 @@
-<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>升级脚手架</h1><p>作者在群里发新版时:</p>
-<li>下载新的两个 whl, 替换 <code>libs/</code> 里的同名旧文件(文件名里的数字就是版本号);</li>
-<li>pyproject 里 <code>[tool.uv.sources]</code> 两行 path 改成新文件名;</li>
-<li><code>uv sync</code>。</li>
-<p>不领新版就继续用旧的, 互不影响。</p></body></html>
+<html><head><meta charset='utf-8'><style>body{font-family:'Microsoft YaHei';margin:24px;line-height:1.6}pre{background:#1b1f24;color:#d0d0d0;padding:10px;border-radius:6px;overflow-x:auto}h2{border-bottom:2px solid #4a7;padding-bottom:4px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px;font-size:14px}</style></head><body><h1>总说明</h1><p>框架自己的配置在 <code>scaffold.toml</code>(与业务配置 business.py 分离): 通道/热键/拟人键鼠/ 运行策略/外观。改完重启中控台生效; 下表<b>默认值与类型由框架内省生成</b>, 说明为人工 注释, 键位增删会触发生成器对账报错——不会漂移。</p></body></html>

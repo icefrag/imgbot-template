@@ -15,4 +15,4 @@ if idx &gt;= 0:
     MoveTo(x, y); LeftClick()
 SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口加 ime=True)</pre>
 <p><b>循环自己写, 返回 = 任务完成</b>: main_task 只被框架调用<b>一次</b>, 正常返回即整个 任务完成收口。要挂机就自己写 <code>while not stopped(): ...</code>(F9 叫停循环即退); 预期内的失败(没找到怪/点击落空)在循环里 try/except 掉——那是业务; 冒出去的异常 框架才接管: 自动重开, 连败熔断。做一次性任务直接写直线代码, 不用任何技巧。</p>
-<p>命令权威表见本手册<b>三章</b>(签名由框架内省生成, 与代码不漂移)。 adb 方言与更冷门的动作走逃生舱: <code>ctx.ops</code>(图色门面)/<code>ctx.device</code>(adb 方言)。</p></body></html>
+<p>命令权威表: PC 窗口端见<b>三章</b>, 手机(adb)端见<b>四章</b>(签名由框架内省生成, 与代码不漂移)。更冷门的动作走逃生舱: <code>ctx.ops</code>(图色门面, 双端同构)/ <code>ctx.device</code>(adb 方言, 表见四章)。</p></body></html>

@@ -187,6 +187,21 @@ class _AdbDm:
         self._t.tap(*self._pos)
 
 
+# ==================== adb 端设备发现 ====================
+def adb_rows(online: list[str], preset: list[str]) -> list[str]:
+    """在线序列号 → 入表行: preset 非空=白名单(保 preset 顺序), 空=全收。"""
+    if not preset:
+        return list(online)
+    have = set(online)
+    return [s for s in preset if s in have]
+
+
+def list_adb_serials(cfg) -> list[str]:
+    """扫在线设备并过 cfg.adb_serials 白名单(adb 缺席抛异常, 调用方降级提示)。"""
+    from imgbot.adb import list_devices
+    return adb_rows(list_devices(), cfg.adb_serials)
+
+
 def bind_adb_backend(serial: str, scaffold, business_cfg, log, stop) -> Ctx:
     """adb 端绑定: AdbTarget(魔神线, 天然后台) + Ops 鸭子帧源(图色 DSL 同构)。"""
     from imgbot.ops import Ops

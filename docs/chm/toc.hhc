@@ -36,7 +36,7 @@
 			</OBJECT>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="三、命令清单">
+		<param name="Name" value="三、PC 窗口开发">
 		<param name="Local" value="index.html#dsl">
 		</OBJECT>
 		<UL>
@@ -215,12 +215,33 @@
 			</UL>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="四、全局配置">
+		<param name="Name" value="四、手机(adb)开发">
+		</OBJECT>
+		<UL>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="adb 端上手">
+			<param name="Local" value="p6.html">
+			</OBJECT>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="命令一览(22 个, 双端同构)">
+			<param name="Local" value="p7.html">
+			</OBJECT>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="adb 方言(ctx.device)">
+			<param name="Local" value="p8.html">
+			</OBJECT>
+			<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="端差异与注意">
+			<param name="Local" value="p9.html">
+			</OBJECT>
+		</UL>
+		<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="五、全局配置">
 		</OBJECT>
 		<UL>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="总说明">
-			<param name="Local" value="p6.html">
+			<param name="Local" value="p10.html">
 			</OBJECT>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="目标与通道">
@@ -236,43 +257,43 @@
 			</OBJECT>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="五、通道选择速查">
+		<param name="Name" value="六、通道选择速查(仅 window 端)">
 		</OBJECT>
 		<UL>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="能力矩阵">
-			<param name="Local" value="p7.html">
+			<param name="Local" value="p11.html">
 			</OBJECT>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="六、长跑保障">
+		<param name="Name" value="七、长跑保障">
 		</OBJECT>
 		<UL>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="机制表">
-			<param name="Local" value="p8.html">
+			<param name="Local" value="p12.html">
 			</OBJECT>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="七、打包与升级">
+		<param name="Name" value="八、打包与升级">
 		</OBJECT>
 		<UL>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="打包 exe 发给别人">
-			<param name="Local" value="p9.html">
+			<param name="Local" value="p13.html">
 			</OBJECT>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="升级脚手架">
-			<param name="Local" value="p10.html">
+			<param name="Local" value="p14.html">
 			</OBJECT>
 		</UL>
 		<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="八、常见问题">
+		<param name="Name" value="九、常见问题">
 		</OBJECT>
 		<UL>
 			<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="FAQ">
-			<param name="Local" value="p11.html">
+			<param name="Local" value="p15.html">
 			</OBJECT>
 		</UL>
 </UL>
