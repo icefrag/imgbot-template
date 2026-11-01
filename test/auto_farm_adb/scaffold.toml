@@ -1,0 +1,7 @@
+backend = "adb"
+adb_serials = []      # 预置白名单(空=全部在线设备入表)
+max_restarts = 3
+window_size = [960, 600]
+left_ratio = 0.45
+theme = "solar"
+idle_timeout = 0

@@ -13,4 +13,4 @@ build/
 
 # 测试自裁模板(test_dsl_game 每轮从靶子实况重生成, 不入库)
 templates/test_game/
-test/auto_farm/business.yaml
+test/auto_farm*/business.yaml
