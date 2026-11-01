@@ -54,23 +54,22 @@ imgbot = { path = "../imgbot", editable = true }
 
 imgbot 必须 editable,否则 venv 里是快照,源仓改动这边静默跑旧版(踩过)。
 
-## 回归测试(改 DSL/键鼠/图色接口必跑)
+## 回归测试(改命令/键鼠/图色接口必跑)
 
 自研 Win32 靶子游戏 `test/dummy_game.py`(icefrag靶场, gdi 截屏+PostMessage
-键鼠**全后台**, 遮挡可跑不动真鼠标),把 DSL 全部动词打成 14 个 E2E 用例;
+键鼠**全后台**, 遮挡可跑不动真鼠标),把 icefrag 命令+大漠直通打成 17 个 E2E 用例;
 模板每轮从靶子实况自裁(同源裁材),不入库。
 
 ```bash
-uv run test/test_dsl_game.py               # 全量(约 1 分钟, 15 用例)
+uv run test/test_dsl_game.py               # 全量(约 1 分钟, 17 用例)
 uv run test/test_dsl_game.py find_tap nav  # 按名子串筛选用例(改哪测哪)
-uv run test/test_dsl_mouse.py              # 离线组织层(秒级): 路由/抖动/停顿/key 序
+uv run test/test_dsl_mouse.py              # 离线组织层(秒级): 路由/抖动/停顿/直通代理
 ```
 
-规矩(与 DSL 文档纪律同级): `icefrag/dsl.py` 或 imgbot 键鼠/图色接口(Ops/
-DmSoft/键鼠类)任何变更,先跑绿再算完。用例→动词映射表在
+规矩(与命令文档纪律同级): `icefrag/dsl.py` 或 imgbot 键鼠/图色接口(Ops/
+DmSoft/键鼠类)任何变更,先跑绿再算完。用例→命令映射表在
 `test/test_dsl_game.py` 模块头;改靶子布局须与用例同步。未覆盖: dx/潜影
-通道(需真 D3D 游戏)、adb 真机链路(鸭子逻辑由离线矩阵覆盖)、key() 的
-windows 键盘通道(引擎历史死案, 离线覆盖)。
+通道(需真 D3D 游戏)、adb 真机链路(鸭子逻辑由离线矩阵覆盖)。
 
 ## 新项目出生(③已通, 现在就能用)
 
@@ -90,7 +89,7 @@ wheel 装入 venv、注入件在包内、入口可导入)。
 ## 发版流(每次对外发骨架 zip)
 
 ```bash
-# 1. 版本号: 本仓 pyproject version(语义: 破坏性=大版本, DSL 加命令=小版本, 修 bug=补丁)
+# 1. 版本号: 本仓 pyproject version(语义: 破坏性=大版本, 命令层加命令=小版本, 修 bug=补丁)
 #    引擎版本随 imgbot 仓自己的 version, make_skeleton 自动取两仓最新构建
 uv run scripts/make_skeleton.py     # 内含两仓 uv build + 组装 + 压 zip
 # 2. 干净目录自测(铁律, 见上)
@@ -110,33 +109,34 @@ uv run scripts/make_skeleton.py     # 内含两仓 uv build + 组装 + 压 zip
 │   ├── worker.py        #   生命周期: 绑定→ctx→任务→异常重开→收口
 │   ├── backends.py      #   adb / window 两端(发现/绑定/ctx 组装)
 │   ├── hotkeys.py       #   F9 热键收编(hover/focus 拾取)
-│   ├── dsl.py           #   顶层命令表(task.py import * 直用)
+│   ├── dsl.py           #   命令清单(icefrag 命令 + 大漠直通)
 │   ├── settings.py      #   scaffold.toml 读写
 │   ├── store.py         #   business.yaml 读写
 │   ├── console_ui.py    #   中控台 UI
 │   └── build.py         #   发布链(build_exe.py 薄包装调它)
-├── scripts/             # build_docs.py(DSL 清单生成) + make_skeleton.py(骨架打包)
+├── scripts/             # build_docs.py(命令清单手册生成) + make_skeleton.py(骨架打包)
 ├── skel/                # 骨架携带文件母版(AGENTS.md: 给对方 AI 代理的军规)
-├── docs/                # DSL语法清单 + 脚手架使用手册 + adr/
-└── test/                # dummy_game 自研靶场 + test_dsl_game(全动词 E2E)
+├── docs/                # icefrag开发手册(md/html/chm) + adr/
+└── test/                # dummy_game 自研靶场 + test_dsl_game(命令全量 E2E)
                          # + test_dsl_mouse(离线) + selfcheck + auto_farm...
 ```
 
-DSL 文档纪律: 任何 `icefrag/dsl.py` 变更必须重跑 `uv run scripts/build_docs.py`
+命令文档纪律: 任何 `icefrag/dsl.py` 变更必须重跑 `uv run scripts/build_docs.py`
 并提交三产物(md/html/chm);同时必须跑绿回归测试(见上节)。详见 [AGENTS.md](AGENTS.md)。
 
 ## 框架开发手册
 
-### DSL 要点(task.py 免前缀)
+### 命令要点(task.py 免前缀)
 
-`from icefrag.dsl import *` 后直接写: `click(x, y)` / `key("ctrl+s")` /
-`sleep(500)`。速查表在 `dsl.py` 模块头,权威版 [docs/DSL语法清单.md](docs/DSL语法清单.md)。
+`from icefrag.dsl import *` 后直接写: `click(x, y)` / `sleep(500)` /
+`FindPic(...)`。速查表在 `dsl.py` 模块头,权威版 [docs/icefrag开发手册.md](docs/icefrag开发手册.md)。
 
 - **凡时间皆毫秒**; **找不到/超时返回 None/False 不抛**——"没找到"是挂机常态,真故障由重开兜底
 - **循环归业务**: main_task 只被调用一次,返回=任务完成;挂机循环自己写
   `while not stopped():`,预期内失败自行 try/except,冒泡异常框架重开
 - **F9 停止贯穿**所有 sleep 与等待; 招牌复合: `find_tap` / `tap_until_gone`
-- 多点找色: `Pt(x, y, (B,G,R), tol)` 组点阵,全中才算(同色文字天然不全中)
+- 多点找色: 直通 `FindMultiColor(x1,y1,x2,y2,"RRGGBB","x|y|RRGGBB-tol,...")`,
+  或 `ctx.ops.find_multi_color` 吃 `imgbot.vision.Pt` 点阵,全中才算(同色文字天然不全中)
 - 逃生舱: `ctx.ops / ctx.dm / ctx.device` 能力一分不少
 
 ### ctx 一览

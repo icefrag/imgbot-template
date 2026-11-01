@@ -7,7 +7,7 @@
 ### 分层
 
 **脚手架层(scaffold / icefrag)**:
-`icefrag/` 框架包(worker/中控台/DSL/设置),以源码形态开源分发——它是推广物料,不是机密。
+`icefrag/` 框架包(worker/中控台/命令层/设置),以源码形态开源分发——它是推广物料,不是机密。
 _Avoid_: 模板(指旧拷贝形态)、框架(过泛)、bot(旧名)
 
 **引擎层(engine)**:
@@ -17,6 +17,20 @@ _Avoid_: 底层库、大漠(仅指反编译参考的原版商业插件)
 **薄项目(thin project)**:
 脚本开发者的项目形态: 只含入口薄文件、business/task、素材与配置;脚手架与引擎靠依赖声明引入,不含任何框架源码拷贝。
 _Avoid_: 拷贝项目、子项目、寄生项目(仅指旧 test/auto_farm 的临时姿势)
+
+### 命令
+
+**命令清单(command list)**:
+task.py 星号面(`from icefrag.dsl import *`)的全部内容 = icefrag 命令 + 大漠直通;权威表在开发手册三章(签名内省生成, 与代码不漂移)。
+_Avoid_: DSL(旧称, 已废)、动词表(过窄)
+
+**icefrag 命令**:
+snake_case 组装层命令(拟人键鼠/等待环/复合动作/OCR/导航),只收大漠单命令组装不来的增值——单帧查询、单命令换皮一律不收。
+_Avoid_: DSL 动词(旧称)
+
+**大漠直通(dm passthrough)**:
+imgbot DmSoft 公有方法同名同参透传进 task.py(PascalCase: LeftClick/FindPic/SetWindowState...),仅 window 端可用。
+_Avoid_: 大漠(那仅指反编译参考的原版商业插件)
 
 ### 受众
 

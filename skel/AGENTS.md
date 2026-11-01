@@ -14,11 +14,11 @@
    try/except 掉——那是业务;冒泡异常框架自动重开(重绑重进, 连败 max_restarts 次
    熔断;可定义 `on_fuse(ctx) -> bool` 自救);重开也救不了的场景
    `raise FatalError("账号被封")`。
-3. DSL 三律: **凡时间皆毫秒**;**找不到/超时返回 None/False 不抛异常**;
+3. 命令三律: **凡时间皆毫秒**;**找不到/超时返回 None/False 不抛异常**;
    **F9 停止贯穿一切 sleep 与等待**。
 4. 命令表以 `docs/DSL语法清单.md` 为权威(签名由框架实时内省生成, 与代码不漂移)。
-   没有 DSL 动词的操作走逃生舱: `ctx.ops`(图色门面)/`ctx.dm`(DmSoft 全量接口)/
-   `ctx.device`(adb 魔神方言)。
+   icefrag 命令只收组装(拟人/等待/复合); 没有现成命令的操作走逃生舱:
+   `ctx.ops`(图色门面)/`ctx.dm`(DmSoft 全量接口)/`ctx.device`(adb 魔神方言)。
 5. 业务参数: `business.py` 一个 dataclass, 字段带默认值 + `FIELD_META = {"字段名":
    ("中文名", "entry"|"combo:选项1|选项2")}`(bool 字段自动是/否下拉), 中控台设置
    弹窗自动生成、改值落盘 business.yaml。任务里 `ctx.cfg.字段名` 取当前值。
