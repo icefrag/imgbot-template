@@ -45,6 +45,10 @@ def main() -> int:
     else:
         print("[warn] 本机 rapidocr_onnxruntime 导入崩溃(多半缺 VC++ 2015-2022 x64 运行库),")
         print("       exe 将不含 OCR —— 任务用到 ocr()/find_str() 需先装运行库再重打包")
+    icon = ROOT / "assets" / "icon.ico"
+    if icon.exists():  # 项目自带图标: exe 文件图标 + 摆进用户区(console 运行时 iconbitmap 读它)
+        args += ["--icon", str(icon)]
+        print(f"[0] 图标: {icon}")
     print(f"[1] 打包 {name} v{ver}(onedir, 几分钟)…")
     r = subprocess.run(args + [str(ROOT / "console.py")], cwd=ROOT)
     if r.returncode != 0:
@@ -53,6 +57,8 @@ def main() -> int:
     app = ROOT / "dist" / name
     print("[2] 摆 exe 旁的用户区(templates)…")
     shutil.copytree(ROOT / "templates", app / "templates", dirs_exist_ok=True)
+    if icon.exists():
+        shutil.copytree(ROOT / "assets", app / "assets", dirs_exist_ok=True)
     bin_src = Path(imgbot.__file__).parent / "dx" / "bin"
     if bin_src.exists():
         print("[3] 拷潜影注入件 bin/…")
