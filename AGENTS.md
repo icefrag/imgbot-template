@@ -8,7 +8,7 @@
 - 位置: `docs/icefrag开发手册.{md,html,chm}`(md 给 AI/骨架 README, CHM 给人);
   生成器 `scripts/build_docs.py` —— icefrag 命令表从 `icefrag/dsl.py` 内省,
   大漠直通表从 imgbot `DmSoft` 内省, 配置表从 `ScaffoldConfig` 内省, 与代码不漂移;
-  散文章节/示例手排在生成器里。旧 `DSL语法清单`/`脚手架使用手册` 已被其取代。
+  散文章节/示例手排在生成器里。旧 `DSL语法清单`/`脚手架使用手册` 已删, 由其取代。
 - **规则: 任何 `icefrag/dsl.py` 变更(增删命令/改签名/改默认值/docstring)或
   `ScaffoldConfig` 字段增删, 必须重跑 `uv run scripts/build_docs.py` 并把
   产物一起提交**, 否则手册与命令表漂移。CHM 编译依赖便携 hhc

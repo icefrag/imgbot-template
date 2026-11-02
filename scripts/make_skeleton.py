@@ -2,8 +2,8 @@
 """骨架打包: 薄项目母版 + 双 whl + 手册 → dist/skeleton-v<版本>.zip。
 
 用法: uv run scripts/make_skeleton.py
-前置: 无 —— 本脚本自己跑两仓的 uv build(引擎仓 wheel 含潜影 bin/, 由其
-pyproject 的 hatch artifacts 配置保证)。
+前置: 无 —— 本脚本自跑 build_docs 重生成手册(打包期对账, 手册与 wheel 必同源)
++ 两仓的 uv build(引擎仓 wheel 含潜影 bin/, 由其 pyproject 的 hatch artifacts 配置保证)。
 
 产物(用户解压 → 改 name → uv sync → 写 task/business, 全程零 GitHub):
   skeleton/
@@ -12,9 +12,9 @@ pyproject 的 hatch artifacts 配置保证)。
   ├── scaffold.toml / pyproject.toml        配置(依赖指向 libs/ 的 whl)
   ├── libs/icefrag-*.whl + imgbot-*.whl     脚手架(开源) + 引擎(现开源, ②后闭源)
   ├── tools/pick_probe.py / templates/
-  ├── docs/DSL语法清单.md
+  ├── docs/icefrag开发手册.md/html/chm      唯一手册源(build_docs 刚生成的那份)
   ├── AGENTS.md                       # 给对方 AI 代理的军规(根目录, 工具自动发现)
-  └── README.md                       # = 使用手册(ASCII 名, 双击即读)
+  └── README.md                       # = 手册 md 版(ASCII 名, 双击即读)
 
 发版铁律: zip 发出去之前, 按用户姿势自测(干净目录解压 → uv sync → 冒烟)。
 """
@@ -27,9 +27,14 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import build_docs   # 同目录脚本: 打包期重生成手册, 对账断言漂移即拦
+
 ROOT = Path(__file__).resolve().parent.parent
 IMGBOT = ROOT.parent / "imgbot"
 DIST = ROOT / "dist"
+
+# 骨架装运的手册产物清单 = build_docs 的命名产物(docs/ 同名)
+DOC_ARTIFACTS = ("icefrag开发手册.md", "icefrag开发手册.html", "icefrag开发手册.chm")
 
 # 薄项目 pyproject 模板(占位符 SCAFFOLD_WHL/ENGINE_WHL 随发版注入真实文件名)
 PYPROJECT_TPL = """\
@@ -78,6 +83,8 @@ def _latest_whl(dist: Path, prefix: str) -> Path:
 def main() -> int:
     meta = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))["project"]
     ver = meta["version"]
+    print("[docs] build_docs 重生成(打包期对账, 漂移在此即拦)…")
+    build_docs.build()
     _build(ROOT, "icefrag")
     _build(IMGBOT, "imgbot(引擎)")
     scaffold_whl = _latest_whl(DIST, "icefrag")
@@ -98,9 +105,13 @@ def main() -> int:
         shutil.copy2(ROOT / f, stage / f)
     shutil.copy2(ROOT / "skel" / "AGENTS.md", stage / "AGENTS.md")  # AI 军规(工具自动发现)
     shutil.copy2(ROOT / "test" / "pick_probe.py", stage / "tools" / "pick_probe.py")
-    shutil.copy2(ROOT / "docs" / "DSL语法清单.md", stage / "docs" / "DSL语法清单.md")
-    (stage / "README.md").write_text(
-        (ROOT / "docs" / "脚手架使用手册.md").read_text("utf-8"), encoding="utf-8")
+    for name in DOC_ARTIFACTS:
+        src = ROOT / "docs" / name
+        if name.endswith(".chm") and not src.exists():
+            continue            # hhc 缺席无 chm; md/html 恒新生成, 已够用
+        shutil.copy2(src, stage / "docs" / name)
+    (stage / "README.md").write_text(   # README = 手册 md 版(同 build_docs 声明的意图)
+        (ROOT / "docs" / "icefrag开发手册.md").read_text("utf-8"), encoding="utf-8")
     shutil.copy2(scaffold_whl, stage / "libs" / scaffold_whl.name)
     shutil.copy2(engine_whl, stage / "libs" / engine_whl.name)
     (stage / "pyproject.toml").write_text(

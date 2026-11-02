@@ -4,8 +4,8 @@
 **不拷贝本仓**;引擎机密(imgbot+潜影)编译闭源,脚手架层开源推广。
 术语见 [GLOSSARY.md](GLOSSARY.md),发行模型决策见
 [ADR-0001](docs/adr/0001-库化分发-引擎闭源脚手架开源文件分发.md),
-给脚本开发者的文档见 [docs/脚手架使用手册.md](docs/脚手架使用手册.md)
-(随骨架 zip 分发时名 README.md)。
+给脚本开发者的文档见 [docs/icefrag开发手册.md](docs/icefrag开发手册.md)
+(随骨架 zip 分发: docs/ 三产物 + 同内容 README.md)。
 
 ## 实施进度
 
@@ -78,7 +78,8 @@ uv run scripts/make_skeleton.py     # → dist/skeleton-v0.1.0.zip
 ```
 
 zip 内容: 薄入口(console/build_exe)+ business/task 示例 + scaffold.toml +
-pyproject(依赖指向 libs/ 双 whl)+ tools/pick_probe + docs/DSL语法清单 + README(使用手册)。
+pyproject(依赖指向 libs/ 双 whl)+ tools/pick_probe + docs/icefrag开发手册(md/html/chm)
++ README(=手册 md 版; 打包期重跑 build_docs, 手册与 wheel 必同源)。
 
 - **发给别人**: zip 直接发群,对方解压 → 改 pyproject 的 name → `uv sync` → 写 task/business;
 - **自用新项目**: 解压后把 pyproject 的两条 sources 改成上面的直链写法,即变成 dogfood 项目。
@@ -91,7 +92,7 @@ wheel 装入 venv、注入件在包内、入口可导入)。
 ```bash
 # 1. 版本号: 本仓 pyproject version(语义: 破坏性=大版本, 命令层加命令=小版本, 修 bug=补丁)
 #    引擎版本随 imgbot 仓自己的 version, make_skeleton 自动取两仓最新构建
-uv run scripts/make_skeleton.py     # 内含两仓 uv build + 组装 + 压 zip
+uv run scripts/make_skeleton.py     # 内含 build_docs 重生成 + 两仓 uv build + 组装 + 压 zip
 # 2. 干净目录自测(铁律, 见上)
 # 3. 发群文件, 群公告记版本号与更新说明
 ```

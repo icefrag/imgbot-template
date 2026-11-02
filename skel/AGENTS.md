@@ -16,7 +16,7 @@
    `raise FatalError("账号被封")`。
 3. 命令三律: **凡时间皆毫秒**;**找不到/超时返回 None/False 不抛异常**;
    **F9 停止贯穿一切 sleep 与等待**。
-4. 命令表以 `docs/DSL语法清单.md` 为权威(签名由框架实时内省生成, 与代码不漂移)。
+4. 命令表以 `docs/icefrag开发手册.md` 为权威(签名由框架实时内省生成, 与代码不漂移)。
    icefrag 命令只收组装(拟人/等待/复合); 没有现成命令的操作走逃生舱:
    `ctx.ops`(图色门面)/`ctx.dm`(DmSoft 全量接口)/`ctx.device`(adb 魔神方言)。
 5. 业务参数: `business.py` 一个 dataclass, 字段带默认值 + `FIELD_META = {"字段名":
