@@ -39,11 +39,11 @@ def main() -> int:
     dsl._bind(ctx)                     # DSL 顶层动词挂上(模拟 worker 行为)
     print("[2] 绑定 OK(ops 鸭子帧源 + device 方言)")
 
-    h, w = ctx.dm._screen().shape[:2]
+    h, w = ctx.dm.screen().shape[:2]
     print(f"[3] 截图 {w}x{h} OK(BGR 帧源通)")
 
     # 找色自证: 取屏幕中心像素色, 全屏 find_color 必命中中心区
-    frame = ctx.dm._screen()
+    frame = ctx.dm.screen()
     cy, cx = h // 2, w // 2
     b, g, r = (int(v) for v in frame[cy, cx])
     hits = ctx.ops.find_color(f"{r:02X}{g:02X}{b:02X}", tol=8)

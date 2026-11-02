@@ -2,10 +2,12 @@
 """Worker: 一个目标一个线程。框架承担: 绑定→ctx→任务→异常重开→收口,
 任务代码(main_task(ctx))对这些一无所知。
 
-状态机: 未运行 → (启动)运行中 → 完成/异常(重开计数) → 熔断/已停止
+状态机(State 枚举): IDLE → (启动)RUNNING → DONE/ERROR*(重开计数) → FUSED/STOPPED
+状态文案/UI 染色只经 display/coarse 派生属性读——别对 state 做字符串匹配。
 """
 from __future__ import annotations
 
+import enum
 import threading
 import time
 import traceback
@@ -16,6 +18,16 @@ from . import backends, dsl, settings
 class FatalError(RuntimeError):
     """致命失败: 重开也救不了的(账号被封/游戏版本过期/素材全失效)。
     task.py 里 raise 它, worker 直接停手不消耗重开次数。"""
+
+
+class State(enum.Enum):
+    IDLE = "未运行"
+    RUNNING = "运行中"
+    DONE = "已完成"
+    STOPPED = "已停止"
+    ERROR = "异常"
+    FATAL = "异常(致命)"
+    FUSED = "异常(熔断)"
 
 
 class Worker:
@@ -29,7 +41,7 @@ class Worker:
         self.logq = logq
         self.stop_event = threading.Event()
         self.thread: threading.Thread | None = None
-        self.state = "未运行"
+        self.state = State.IDLE
         self.last_info = "—"
         self.restarts = 0
 
@@ -38,7 +50,24 @@ class Worker:
     def alive(self) -> bool:
         return self.thread is not None and self.thread.is_alive()
 
+    @property
+    def display(self) -> str:
+        """给 UI 看的中文文案(改文案不动转移语义)。"""
+        return self.state.value
+
+    @property
+    def coarse(self) -> str:
+        """行染色粗状态(UI 行 tag): running/error/done/idle。"""
+        if self.alive:
+            return "running"
+        if self.state in (State.ERROR, State.FATAL, State.FUSED):
+            return "error"
+        if self.state is State.STOPPED:
+            return "done"
+        return "idle"
+
     def log(self, text: str, level: str = "info"):
+        self.last_info = text[:40]                # 最近信息归 Worker 自写, UI 只读
         self.logq.put((self.ident, text, level))
 
     # -- 控制 --
@@ -79,7 +108,7 @@ class Worker:
         try:
             if fuse(ctx):
                 self.restarts = 0
-                self.state = "运行中"
+                self.state = State.RUNNING
                 self.log("on_fuse 恢复成功, 重开计数清零", "info")
                 return True
             self.log("on_fuse 返回未恢复, 维持熔断", "error")
@@ -91,7 +120,7 @@ class Worker:
         """绑定 → 任务循环(异常重开/熔断) → 收口。一次线程调用跑到底。"""
         ctx = None
         try:
-            self.state = "运行中"
+            self.state = State.RUNNING
             if self.backend == "window":
                 ctx = backends.bind_window_backend(
                     int(self.ident), self.gcfg, self.business_cfg,
@@ -113,12 +142,12 @@ class Worker:
                 try:
                     task_mod.main_task(ctx)        # 一个函数 = 任务全程, 返回即完成
                     stopped = self.stop_event.is_set()
-                    self.state = "已停止" if stopped else "已完成"
+                    self.state = State.STOPPED if stopped else State.DONE
                     self.log("任务被停止" if stopped else "任务完成")
                     return
                 except FatalError as e:                 # 致命: 重开无意义, 直接躺
                     ctx.shot("致命")
-                    self.state = "异常(致命)"
+                    self.state = State.FATAL
                     self.log(f"致命失败不重开: {e}", "error")
                     return
                 except Exception as e:
@@ -127,19 +156,20 @@ class Worker:
                     if self.restarts > self.gcfg.max_restarts:
                         if self._try_fuse_hook(task_mod, ctx):
                             continue             # 业务自愈成功, 计数已清零
-                        self.state = "异常(熔断)"
+                        self.state = State.FUSED
                         self.log(f"连败 {self.restarts} 次熔断: {e!r}", "error")
                         return
-                    self.state = "运行中"
+                    self.state = State.RUNNING
                     self.log(f"异常重开 {self.restarts}/{self.gcfg.max_restarts}: "
                              f"{e!r}", "warn")
                     self.stop_event.wait(2.0)
         except Exception as e:                   # 绑定阶段炸
-            self.state = "异常"
+            self.state = State.ERROR
             self.log(f"绑定失败: {e!r}", "error")
         finally:
             if ctx is not None:
                 backends.unbind(ctx)
-            if not self.state.startswith("异常") and self.state != "已完成":
-                self.state = "已停止"
+            if (self.state not in (State.ERROR, State.FATAL, State.FUSED,
+                                   State.DONE)):
+                self.state = State.STOPPED
             self.log("已收口解绑")

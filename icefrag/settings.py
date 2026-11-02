@@ -55,8 +55,8 @@ def load() -> ScaffoldConfig:
         try:
             raw = tomllib.loads(PATH.read_text("utf-8"))
         except tomllib.TOMLDecodeError:            # 损坏: 备份后用默认值
-            from .store import _backup_broken
-            _backup_broken(PATH)
+            from .store import backup_broken
+            backup_broken(PATH)
             raw = {}
         known = {f.name: f for f in fields(ScaffoldConfig)}
         for k, v in raw.items():
@@ -68,6 +68,55 @@ def load() -> ScaffoldConfig:
 def save(cfg: ScaffoldConfig) -> None:
     if getattr(sys, "frozen", False):
         return          # 发布形态: 脚手架配置编译期定死, 用户侧不可改
-    from .store import _atomic_write
-    _atomic_write(PATH, tomli_w.dumps(
+    from .store import atomic_write
+    atomic_write(PATH, tomli_w.dumps(
         {f.name: getattr(cfg, f.name) for f in fields(cfg)}))
+
+
+# 设置弹窗单一来源(与 business.FIELD_META 同款思路): 字段 → (中文名, 控件, 适用端)。
+# 控件: "entry" | "combo:a|b|c" | "hotkey"; 适用端: "window" | "adb" | "both";
+# 不在此表的字段不进弹窗(冷门项手改 scaffold.toml)。build_docs 对账断言保
+# 此表只引用真实字段——加字段改名后忘了登记, 生成手册时即报错。
+FIELD_META = {
+    "hotkey": ("启动热键", "hotkey", "window"),
+    "display": ("图色通道", "combo:normal|gdi|gdi2|dx", "window"),
+    "mouse": ("鼠标通道", "combo:normal|windows|windows2|dx", "window"),
+    "keypad": ("键盘通道", "combo:normal|windows|dx", "window"),
+    "fake_active": ("后台假激活", "combo:否|是", "window"),
+    "hook_keystate": ("键状态钩子", "combo:否|是", "window"),
+    "hide_module": ("隐藏模块", "combo:否|是", "window"),
+    "theme": ("主题", "combo:darkly|superhero|cyborg|solar|cosmo|flatly|litera|minty",
+              "both"),
+    "window_size": ("窗体尺寸",
+                    "combo:[960, 600]|[1280, 800]|[1600, 900]|[1920, 1080]",
+                    "both"),
+    "left_ratio": ("左列宽度比例", "entry", "both"),
+}
+
+# 经典组合: 症状 → 配方。设置弹窗"一键套用"与手册通道章"对症速查表"的
+# 单一数据源(顺序=伤害递增, 能用上面的别用下面的)。
+CLASSIC_COMBOS = [
+    ("起步首选 · 普通窗口后台挂机",
+     {"display": "gdi", "mouse": "windows", "keypad": "windows"}),
+    ("移动/键盘正常, 唯独点击全无反应",
+     {"display": "gdi", "mouse": "dx", "keypad": "windows", "fake_active": True}),
+    ("键盘消息全无反应(消息免疫)",
+     {"display": "gdi", "mouse": "dx", "keypad": "dx", "hook_keystate": True}),
+    ("点击坐标总落到真鼠标处/偏移",
+     {"display": "gdi", "mouse": "windows2", "keypad": "windows"}),
+    ("GDI 截图黑屏/冻结(D3D/GL 游戏)",
+     {"display": "dx", "mouse": "dx", "keypad": "windows"}),
+]
+
+
+def coerce(cur, text: str):
+    """按当前值类型转换弹窗文本(脚手架/业务两个设置弹窗共用)。"""
+    if isinstance(cur, bool):
+        return text.strip().lower() in ("1", "true", "yes", "是")
+    if isinstance(cur, int):
+        return int(text)
+    if isinstance(cur, float):
+        return float(text)
+    if isinstance(cur, list):
+        return [int(x) for x in text.strip("[]").split(",") if x.strip()]
+    return text

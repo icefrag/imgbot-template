@@ -60,7 +60,8 @@ DM_GROUPS = [
             "LockMouseRect"]),
     ("图色", ["Capture", "CapturePng", "CaptureJpg", "GetColor", "GetColorBGR",
             "CmpColor", "FindColor", "FindColorE", "FindColorEx", "FindPic",
-            "FindPicE", "FindMultiColor", "GetColorNum", "IsDisplayDead"]),
+            "FindPicE", "FindMultiColor", "GetColorNum", "IsDisplayDead",
+            "screen"]),
     ("窗口", ["FindWindow", "FindWindowEx", "GetWindowClass", "GetWindowTitle",
             "GetWindowRect", "GetClientRect", "GetClientSize", "ClientToScreen",
             "ScreenToClient", "MoveWindow", "SetWindowState", "EnumWindow",
@@ -77,6 +78,10 @@ DM_GROUPS = [
     ("其他", ["LockInput", "LockDisplay", "GetFps", "HackSpeed", "SetAero",
             "DownCpu", "SetInputDm", "SetPath", "Ver", "GetLastError"]),
 ]
+
+# 命令计数(手册多处引用, 一处算好——数字字面量必漂移)
+N_CMD = len([n for _, names in GROUPS for n in names])
+N_DM = len([n for _, names in DM_GROUPS for n in names])
 
 # ==================== adb 方言表(签名内省 imgbot AdbTarget = ctx.device) ====================
 DEVICE_DESC = {
@@ -169,16 +174,25 @@ input), 无通道概念——display/mouse/keypad 等配置不参与(见四章)�
 选型口诀: 能 `gdi`+`windows` 全后台就全后台(测试/挂机两不误);
 目标不认 PostMessage 点击再退 `normal` 前台; 3D 游戏上 `dx`。
 
-对症速查(设置弹窗"经典组合"同款, 点按即套用):
+对症速查(与设置弹窗"经典组合"同源——单一数据源 settings.CLASSIC_COMBOS, 点按即套用):
 
-| 症状 | 配方(display · mouse · keypad) |
-|---|---|
-| 起步首选 · 普通窗口后台 | `gdi · windows · windows` |
-| 移动/键盘正常, 唯独点击全无反应 | `gdi · dx · windows` + `fake_active` |
-| 键盘消息全无反应(轮询型游戏) | `gdi · dx · dx` + `hook_keystate` |
-| 点击坐标总落到真鼠标处/偏移 | `gdi · windows2 · windows` |
-| GDI 截图黑屏/冻结(D3D/GL 渲染) | `dx · dx · windows` |
+{{对症速查}}
 """
+
+
+def _quick_table_md() -> str:
+    """对症速查表: settings.CLASSIC_COMBOS 渲染成手册表(与弹窗同源不漂移)。"""
+    rows = ["| 症状 | 配方(display · mouse · keypad) |", "|---|---|"]
+    for name, combo in scfg.CLASSIC_COMBOS:
+        recipe = f"`{combo['display']} · {combo['mouse']} · {combo['keypad']}`"
+        switches = [k for k in combo if k not in ("display", "mouse", "keypad")]
+        if switches:
+            recipe += " + " + " + ".join(f"`{k}`" for k in switches)
+        rows.append(f"| {name} | {recipe} |")
+    return "\n".join(rows)
+
+
+CHANNELS_MD = CHANNELS_MD.replace("{{对症速查}}", _quick_table_md())
 
 # ==================== 散文章节(md 子集: ##/###/段落/-表/```/**/`) ====================
 PROSE = [
@@ -295,7 +309,7 @@ PROSE_LATE = [   # 四~九章(手机/配置章含内省表, 通道表由常量�
 热键收编(F9)是 window 端专属概念, adb 端没有也不需要。任务代码(task.py)
 与 PC 端**同一套命令**——换端不改脚本, 差异全在下面两张表里。
 """),
-        ("命令一览(22 个, 双端同构)", None),   # build 期由内省填充
+        (f"命令一览({N_CMD} 个, 双端同构)", None),   # build 期由内省填充
         ("adb 方言(ctx.device)", None),       # build 期由内省填充
         ("端差异与注意", """
 - **坐标 = 设备屏幕坐标**(分辨率在模拟器设置里定); 素材从 `logs/shots/`
@@ -492,7 +506,7 @@ def _dev_sig(name: str) -> str:
 
 def mobile_cmd_md() -> str:
     """四章·命令一览: 同一份内省向 adb 端再发一份表(源头一处, 不漂移)。"""
-    out = ["22 个 icefrag 命令 adb 端**全体可用**, 签名/返回与三章一字不差"
+    out = [f"{N_CMD} 个 icefrag 命令 adb 端**全体可用**, 签名/返回与三章一字不差"
            "(同一处内省生成); 端行为差异已写进说明列。",
            "**大漠直通在 adb 端不可用**(调用即报错指路)。"
            "用法示例见三章示例速查——命令同一套。", ""]
@@ -607,6 +621,9 @@ def build():
                  f"少写 {fields - set(CFG_DESC)} / 多写 {set(CFG_DESC) - fields}")
     cfg_keys = [k for _, keys in CFG_GROUPS for k in keys]
     assert sorted(cfg_keys) == sorted(fields), "CFG_GROUPS 漏配或多配键"
+    unknown = set(scfg.FIELD_META) - fields
+    if unknown:
+        sys.exit(f"settings.FIELD_META 引用了不存在的配置键: {unknown}")
 
     chm_dir = DOCS / "chm"
     if chm_dir.exists():
@@ -662,7 +679,8 @@ def build():
         for sec, body in secs:
             md += [f"### {sec}", body.strip(), ""]
     md += ["## 三、PC 窗口开发", "",
-           "22 个 icefrag 命令(双端通用; 模拟器/真机端见**四章**) + 85 个大漠直通"
+           f"{N_CMD} 个 icefrag 命令(双端通用; 模拟器/真机端见**四章**) + "
+           f"{N_DM} 个大漠直通"
            "(仅 window 端)。签名由生成器内省生成, 与代码不漂移。", ""]
     for cat, names in GROUPS:
         md += [f"### {cat}", "", "| 命令 | 原型 | 说明 |", "|---|---|---|"]

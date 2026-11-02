@@ -79,7 +79,7 @@ def case(fn):
 
 
 def frame():
-    return ctx.dm._screen()
+    return ctx.dm.screen()
 
 
 def save_tpl(name, img):

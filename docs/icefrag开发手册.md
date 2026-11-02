@@ -101,7 +101,7 @@ SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口�
 
 ## 三、PC 窗口开发
 
-22 个 icefrag 命令(双端通用; 模拟器/真机端见**四章**) + 85 个大漠直通(仅 window 端)。签名由生成器内省生成, 与代码不漂移。
+22 个 icefrag 命令(双端通用; 模拟器/真机端见**四章**) + 86 个大漠直通(仅 window 端)。签名由生成器内省生成, 与代码不漂移。
 
 ### 键鼠(拟人)
 
@@ -215,6 +215,7 @@ SendString(GetBindWindow(), "出售红药500金")        # 打字(老ANSI窗口�
 | **FindMultiColor** | `FindMultiColor(x1, y1, x2, y2, first_color, offset_color, sim=1.0, dir=0, _)` | 多点找色: first_color="RRGGBB", offset_color="x|y|RRGGBB,...". 返回 (x, y)/(-1,-1)。 |
 | **GetColorNum** | `GetColorNum(x1, y1, x2, y2, color, sim=1.0)` | — |
 | **IsDisplayDead** | `IsDisplayDead(x1, y1, x2, y2, t=2)` | 区域 t 秒画面不变返回 1(卡屏检测; 区域裁剪后比对, 全屏死=区域死)。 |
+| **screen** | `screen()` | 取一帧(客户区坐标 BGR)—— Ops 帧源 seam(FrameSource)的实现。 |
 
 #### 窗口
 
@@ -569,15 +570,15 @@ input), 无通道概念——display/mouse/keypad 等配置不参与(见四章)�
 选型口诀: 能 `gdi`+`windows` 全后台就全后台(测试/挂机两不误);
 目标不认 PostMessage 点击再退 `normal` 前台; 3D 游戏上 `dx`。
 
-对症速查(设置弹窗"经典组合"同款, 点按即套用):
+对症速查(与设置弹窗"经典组合"同源——单一数据源 settings.CLASSIC_COMBOS, 点按即套用):
 
 | 症状 | 配方(display · mouse · keypad) |
 |---|---|
-| 起步首选 · 普通窗口后台 | `gdi · windows · windows` |
+| 起步首选 · 普通窗口后台挂机 | `gdi · windows · windows` |
 | 移动/键盘正常, 唯独点击全无反应 | `gdi · dx · windows` + `fake_active` |
-| 键盘消息全无反应(轮询型游戏) | `gdi · dx · dx` + `hook_keystate` |
+| 键盘消息全无反应(消息免疫) | `gdi · dx · dx` + `hook_keystate` |
 | 点击坐标总落到真鼠标处/偏移 | `gdi · windows2 · windows` |
-| GDI 截图黑屏/冻结(D3D/GL 渲染) | `dx · dx · windows` |
+| GDI 截图黑屏/冻结(D3D/GL 游戏) | `dx · dx · windows` |
 
 ## 七、长跑保障
 ### 机制表

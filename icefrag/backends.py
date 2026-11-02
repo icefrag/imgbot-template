@@ -69,7 +69,8 @@ class Ctx:
     """任务代码的全部世界(见 spec.md ctx 字段表)。字段按端装配。"""
 
     def __init__(self, backend: str, name: str, cfg, log, stop,
-                 dm=None, ops=None, device=None, nav=None, mouse=None):
+                 dm=None, ops=None, device=None, nav=None, mouse=None,
+                 click=None, dblclick=None, swipe=None):
         self.backend = backend
         self.name = name                          # 显示名(表格行/日志前缀)
         self.cfg = cfg                            # 业务配置对象
@@ -80,6 +81,10 @@ class Ctx:
         self.device = device
         self.nav = nav                            # 界面导航图(task 声明表时由 worker 建)
         self.mouse = mouse or MouseStyle(True, 3, (60, 160))   # dsl click 默认风格
+        # 键鼠方言臂(dsl click/dblclick/drag 的端实现, 绑定期按端装配)
+        self.click = click
+        self.dblclick = dblclick
+        self.swipe = swipe
         self._last_progress = time.monotonic()    # 看门狗打点(dsl 命中/点击自动刷新)
 
     def progress(self, note: str = ""):
@@ -96,7 +101,7 @@ class Ctx:
             ok = False
             if self.dm is not None:               # window 绑定帧 / adb 鸭子帧源
                 import cv2
-                ok, buf = cv2.imencode(".png", self.dm._screen())
+                ok, buf = cv2.imencode(".png", self.dm.screen())
                 if ok:                            # 不走 cv2.imwrite: 中文路径它静默失败
                     p.write_bytes(buf.tobytes())
             elif self.device is not None:
@@ -140,10 +145,13 @@ def bind_window_backend(hwnd: int, scaffold, business_cfg, log, stop) -> Ctx:
     dm.SetPath(str(ROOT / "templates"))
     _apply_dx_switches(dm, scaffold, log)
     ops = Ops(dm)
+    click_arm, dbl_arm = window_click_arms(dm)
     return Ctx("window", window_title(hwnd), business_cfg, log, stop,
                dm=dm, ops=ops,
                mouse=MouseStyle(scaffold.human_mouse, scaffold.click_jitter,
-                                tuple(scaffold.click_settle_ms)))
+                                tuple(scaffold.click_settle_ms)),
+               click=click_arm, dblclick=dbl_arm,
+               swipe=lambda *a: window_swipe(dm, *a))
 
 
 class _AdbMk:
@@ -166,14 +174,15 @@ class _AdbMk:
 
 
 class _AdbDm:
-    """喂 Ops 门面的 adb 鸭子: _screen→设备截图(BGR), keymouse→拟人点击
-    (find_tap/tap_until_gone/dsl.click 的一步式点击走这条路)。"""
+    """喂 Ops 门面的 adb 鸭子(满足 imgbot FrameSource 协议): screen→设备截图
+    (BGR), keymouse→拟人点击(find_tap/tap_until_gone/dsl.click 的一步式点击
+    走这条路)。"""
 
     def __init__(self, target):
         self._t = target
         self._pos = (0, 0)
 
-    def _screen(self):
+    def screen(self):
         return self._t.screenshot()
 
     @property
@@ -185,6 +194,59 @@ class _AdbDm:
 
     def LeftClick(self):
         self._t.tap(*self._pos)
+
+
+# ==================== 键鼠方言臂(dsl click/dblclick/drag 的端实现) ====================
+# 绑定期装配到 Ctx.click/dblclick/swipe——dsl 命令层零 backend 分支,
+# "该怎么点/拖"的方言知识唯一居所就在这里(与本模块 docstring 的承诺对齐)。
+def window_click_arms(dm):
+    """window 臂: 拟人走 keymouse 引擎(贝塞尔+停顿), 急点走大漠老两步
+    (瞬移+固定 50ms——停顿在引擎 inter_action_delay 里, 不吃 settle)。"""
+    def click(x, y, human, settle_s):
+        if human:
+            dm.keymouse.click(x, y, settle=settle_s)
+        else:
+            dm.MoveTo(x, y)
+            dm.LeftClick()
+
+    def dblclick(x, y, human, settle_s):
+        if human:
+            dm.keymouse.double_click(x, y, settle=settle_s)
+        else:
+            dm.MoveTo(x, y)
+            dm.LeftDoubleClick()
+
+    return click, dblclick
+
+
+def window_swipe(dm, x1, y1, x2, y2, ms):
+    """window 臂拖拽: 按住左键插值拖(~30ms 一步, 与 ops._swipe_once 同拍)。"""
+    steps = max(6, int(ms / 30))
+    dm.MoveTo(x1, y1)
+    dm.LeftDown()
+    for i in range(1, steps + 1):
+        t = i / steps
+        dm.MoveTo(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t))
+        time.sleep(ms / steps / 1000)
+    dm.LeftUp()
+
+
+def adb_click_arms(mk):
+    """adb 臂: 无轨迹, settle=点击前摇(急点不吃前摇, 双击第二击不吃)。"""
+    def click(x, y, human, settle_s):
+        mk.click(x, y, settle=settle_s if human else 0.0)
+
+    def dblclick(x, y, human, settle_s):
+        mk.double_click(x, y, settle=settle_s if human else 0.0)
+
+    return click, dblclick
+
+
+def adb_swipe_arm(device):
+    """adb 臂拖拽: 原生 swipe 直通。"""
+    def swipe(x1, y1, x2, y2, ms):
+        device.swipe(int(x1), int(y1), int(x2), int(y2), int(ms))
+    return swipe
 
 
 # ==================== adb 端设备发现 ====================
@@ -307,10 +369,12 @@ def bind_adb_backend(serial: str, scaffold, business_cfg, log, stop) -> Ctx:
     target = AdbTarget(serial)
     dm = _AdbDm(target)
     ops = Ops(dm)
+    click_arm, dbl_arm = adb_click_arms(dm.keymouse)
     return Ctx("adb", serial, business_cfg, log, stop,
                device=target, ops=ops, dm=dm,
                mouse=MouseStyle(scaffold.human_mouse, scaffold.click_jitter,
-                                tuple(scaffold.click_settle_ms)))
+                                tuple(scaffold.click_settle_ms)),
+               click=click_arm, dblclick=dbl_arm, swipe=adb_swipe_arm(target))
 
 
 def build_nav(task_mod, ctx) -> "object | None":

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from icefrag import backends, settings
 from icefrag.store import load as biz_load
-from icefrag.worker import Worker
+from icefrag.worker import State, Worker
 
 import business
 
@@ -70,7 +70,8 @@ def main() -> int:
     print(f"[5] 停止: state={w.state!r}")
     p.terminate()
 
-    ok = got_bind and got_round and ok_text and w.state in ("已完成", "已停止", "未运行")
+    ok = got_bind and got_round and ok_text and w.state in (
+        State.DONE, State.STOPPED, State.IDLE)
     print("自检:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

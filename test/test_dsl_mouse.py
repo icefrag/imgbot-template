@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-"""命令组织层离线自检: 假 ctx + 假键鼠/假设备, 验拟人路由/抖动界/停顿管道/
-急点分支/drag 两端/sleep 区间/find_tap 透传/大漠直通代理/解锁保险丝。
+"""命令组织层离线自检: 假 dm/假设备 + backends 真方言臂, 验拟人路由/抖动界/
+停顿管道/急点分支/drag 两端/sleep 区间/find_tap 透传/大漠直通代理/解锁保险丝。
+(dsl 命令层已零 backend 分支——方言在 backends 的臂里, 这里把臂装到假 ctx 上。)
 跑法: uv run test/test_dsl_mouse.py
 """
 import threading
 import time
 import types
 
-from icefrag import dsl
+from icefrag import backends, dsl
 from icefrag.backends import MouseStyle, _AdbDm, unbind
 
 
@@ -76,11 +77,20 @@ class FakeDevice:
 
 def bind(backend="window", mouse=None):
     dev = FakeDevice()
+    if backend == "window":
+        dm = FakeDm(FakeMk())
+        click_arm, dbl_arm = backends.window_click_arms(dm)
+        swipe = lambda *a: backends.window_swipe(dm, *a)
+    else:
+        dm = _AdbDm(dev)
+        click_arm, dbl_arm = backends.adb_click_arms(dm.keymouse)
+        swipe = backends.adb_swipe_arm(dev)
     ctx = types.SimpleNamespace(
         backend=backend,
-        dm=_AdbDm(dev) if backend == "adb" else FakeDm(FakeMk()),
+        dm=dm,
         device=dev, ops=FakeOps(),
         mouse=mouse or MouseStyle(True, 3, (60, 160)),
+        click=click_arm, dblclick=dbl_arm, swipe=swipe,
         progress=lambda *a: None, log=lambda *a: None,
         stop=threading.Event())
     dsl._bind(ctx)
@@ -145,10 +155,11 @@ def main():
     assert ctx.device.swipes == [(10, 20, 30, 40, 250)]
 
     # 8. sleep 区间: (60,60) 实睡约 60ms, F9 可中断性由 stop.wait 保证
+    #    (下界留 Windows 定时器粒度余量: wait(0.06) 可能 ~47ms 就醒)
     ctx = bind()
     t0 = time.monotonic()
     dsl.sleep((60, 60))
-    assert 0.05 <= time.monotonic() - t0 < 0.5
+    assert 0.04 <= time.monotonic() - t0 < 0.5
 
     # 9. find_tap 透传 verify
     ctx = bind()

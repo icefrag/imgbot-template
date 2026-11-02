@@ -29,8 +29,14 @@ snake_case 组装层命令(拟人键鼠/等待环/复合动作/OCR/导航),只�
 _Avoid_: DSL 动词(旧称)
 
 **大漠直通(dm passthrough)**:
-imgbot DmSoft 公有方法同名同参透传进 task.py(PascalCase: LeftClick/FindPic/SetWindowState...),仅 window 端可用。
+imgbot DmSoft 公有方法同名同参透传进 task.py(PascalCase: LeftClick/FindPic/SetWindowState…; 例外: 帧源 seam 的小写 `screen`),仅 window 端可用。
 _Avoid_: 大漠(那仅指反编译参考的原版商业插件)
+
+### 中控
+
+**设备编排(devices / Fleet)**:
+中控台的非渲染半边(`icefrag/devices.py` 的 Fleet):设备扫描入列/启停编排/取帧(预览+📸)/行状态解读的唯一居所。console_ui 只认它的接口做渲染,不直接管理 Worker、不 import 引擎;window/adb 方言差异吃在编排层内。
+_Avoid_: 控制器(过泛)、目标面(与 backends 的绑定概念混)
 
 ### 受众
 

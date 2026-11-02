@@ -2,9 +2,9 @@
 """命令清单: task.py 顶层可用的一切命令。顶部一行 `from icefrag.dsl import *` 即得。
 
 两层:
-  icefrag 命令(22 个, snake_case) —— 只收"组装": 拟人键鼠/等待环/复合动作/
+  icefrag 命令(snake_case) —— 只收"组装": 拟人键鼠/等待环/复合动作/
     OCR 识字/界面导航。大漠单命令的换皮一律不收: 单帧查询直接用大漠直通。
-  大漠直通(85 个, PascalCase) —— imgbot DmSoft 公有方法同名同参透传:
+  大漠直通(PascalCase, DmSoft 全部公有方法) —— imgbot DmSoft 同名同参透传:
     LeftClick / FindPic / SetWindowState / SendString ... 与大漠一字不差,
     老脚本肌肉记忆零成本。仅 window 端可用(adb 端调用报错指路)。
 
@@ -45,7 +45,6 @@ from __future__ import annotations
 import random
 import re
 import threading
-import time
 
 _local = threading.local()
 
@@ -91,15 +90,7 @@ def click(x: int, y: int, jitter: int | None = None,
     j = m.jitter if jitter is None else jitter
     h = m.human if human is None else human
     tx, ty = _pt_jitter(x, y, j)
-    if ctx.backend == "window":
-        if h:
-            ctx.dm.keymouse.click(tx, ty, settle=_settle_s(m, settle))
-        else:
-            ctx.dm.MoveTo(tx, ty)             # 老两步: 瞬移+固定 50ms
-            ctx.dm.LeftClick()
-    else:
-        ctx.dm.keymouse.click(tx, ty,
-                              settle=_settle_s(m, settle) if h else 0.0)
+    ctx.click(tx, ty, h, _settle_s(m, settle))   # 端方言在绑定层臂(backends)
 
 
 def dblclick(x: int, y: int, jitter: int | None = None,
@@ -111,33 +102,14 @@ def dblclick(x: int, y: int, jitter: int | None = None,
     j = m.jitter if jitter is None else jitter
     h = m.human if human is None else human
     tx, ty = _pt_jitter(x, y, j)
-    if ctx.backend == "window":
-        if h:
-            ctx.dm.keymouse.double_click(tx, ty, settle=_settle_s(m, settle))
-        else:
-            ctx.dm.MoveTo(tx, ty)
-            ctx.dm.LeftDoubleClick()
-    else:
-        ctx.dm.keymouse.double_click(tx, ty,
-                                     settle=_settle_s(m, settle) if h else 0.0)
+    ctx.dblclick(tx, ty, h, _settle_s(m, settle))
 
 
 def drag(x1: int, y1: int, x2: int, y2: int, ms: int = 350):
     """按住拖拽(列表滚动/滑块): window=按住左键插值拖, adb=原生 swipe。"""
     ctx = _ctx()
     ctx.progress()
-    if ctx.backend == "window":
-        dm = ctx.dm
-        steps = max(6, int(ms / 30))          # ~30ms 一步, 与 ops._swipe_once 同拍
-        dm.MoveTo(x1, y1)
-        dm.LeftDown()
-        for i in range(1, steps + 1):
-            t = i / steps
-            dm.MoveTo(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t))
-            time.sleep(ms / steps / 1000)
-        dm.LeftUp()
-    else:
-        ctx.device.swipe(int(x1), int(y1), int(x2), int(y2), int(ms))
+    ctx.swipe(x1, y1, x2, y2, ms)
 
 
 # ================= 消息 =================
