@@ -84,7 +84,7 @@ class Fleet:
             try:
                 serials = backends.list_adb_serials(self.gcfg)
             except Exception as e:
-                self.logq.put(("adb", f"设备扫描失败: {e}(adb 在 PATH 吗?)", "error"))
+                self.logq.put(("adb", f"设备扫描失败: {e}(adb.exe 摆 exe 旁了吗? 没有则装 platform-tools 配 PATH)", "error"))
                 return
             fresh = [s for s in serials if s not in self.workers]
             labels = backends.adb_labels(fresh)   # 品牌(雷电/MuMu/…)·尾号, 真机退型号

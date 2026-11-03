@@ -57,12 +57,19 @@ def main() -> int:
     app = ROOT / "dist" / name
     print("[2] 摆 exe 旁的用户区(templates)…")
     shutil.copytree(ROOT / "templates", app / "templates", dirs_exist_ok=True)
+    if (ROOT / "scaffold.toml").exists():   # 冻结态 ROOT=exe 目录: 缺它 settings 全默认(2026-11-03 案)
+        shutil.copy(ROOT / "scaffold.toml", app / "scaffold.toml")
     if icon.exists():
         shutil.copytree(ROOT / "assets", app / "assets", dirs_exist_ok=True)
     bin_src = Path(imgbot.__file__).parent / "dx" / "bin"
     if bin_src.exists():
         print("[3] 拷潜影注入件 bin/…")
         shutil.copytree(bin_src, app / "bin", dirs_exist_ok=True)
+    if (ROOT / "adb").exists():  # adb 产品约定: 项目根 adb/ 目录(platform-tools 四件
+        # 套)平铺拷到 exe 旁 —— imgbot.resolve_adb 先找 exe 旁的 adb.exe, 用户机
+        # 免装 platform-tools(2026-11-03 moshen2 用户侧 FileNotFoundError 案)
+        print("[3b] 拷随包 adb/ → exe 旁…")
+        shutil.copytree(ROOT / "adb", app, dirs_exist_ok=True)
 
     print("[4] 压绿色 zip…")
     zip_path = ROOT / "dist" / f"{name}-v{ver}.zip"

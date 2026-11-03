@@ -327,13 +327,14 @@ def adb_labels(serials: list[str]) -> dict[str, str]:
     """一批设备的行标题: 宿主进程认模拟器品牌(雷电/MuMu/夜神/…),
     认不出(真机/他牌)退 型号·尾号。netstat+tasklist 各一次摊给全表。"""
     import subprocess as sp
+    no_win = getattr(sp, "CREATE_NO_WINDOW", 0)   # 无控制台宿主(打包exe)里闪黑窗
     ports: dict[int, set[int]] = {}
     pids: dict[int, str] = {}
     try:
         # netstat/tasklist 输出为系统 ANSI 码页(中文机=GBK), UTF-8 模式下
         # text=True 会炸在读线程 —— 显式 mbcs + 忽略坏字节
         net = sp.run(["netstat", "-ano", "-p", "tcp"], capture_output=True,
-                     encoding="mbcs", errors="ignore").stdout or ""
+                     encoding="mbcs", errors="ignore", creationflags=no_win).stdout or ""
         for ln in net.splitlines():
             p = ln.split()
             if len(p) >= 5 and p[3] == "LISTENING" and ":" in p[1]:
@@ -343,7 +344,7 @@ def adb_labels(serials: list[str]) -> dict[str, str]:
                 except ValueError:
                     pass
         csv = sp.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True,
-                     encoding="mbcs", errors="ignore").stdout or ""
+                     encoding="mbcs", errors="ignore", creationflags=no_win).stdout or ""
         for ln in csv.splitlines():
             f = [x.strip('"') for x in ln.split('","')]
             if len(f) >= 2 and f[1].isdigit():
