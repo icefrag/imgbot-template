@@ -31,11 +31,18 @@ _ROW_TAGS = {"running": "green", "error": "red", "done": "blue", "idle": "gray"}
 
 # 主题 = 操作者外观偏好(ui.json 机器本地记忆): 与项目/业务配置无关, 发布形态
 # (exe)也随时可换。ttkbootstrap 2.x 正名(darkly/superhero 等 1.x 遗留名 3.0 移除,
-# 不收录); 首个即出厂默认
-THEMES = ("bootstrap-dark", "bootstrap-light",
-          "dracula-dark", "dracula-light", "nord-dark", "nord-light",
-          "solarized-dark", "solarized-light", "tokyo-night-dark", "tokyo-night-light")
-DEFAULT_THEME = THEMES[0]
+# 不收录); 元素 (主题 id, 中文标签)——ui.json 存 id(标签可改不迁徙数据),
+# 下拉显示中文标签, 首个即出厂默认
+THEMES = (
+    ("bootstrap-dark", "默认·深色"), ("bootstrap-light", "默认·浅色"),
+    ("dracula-dark", "德古拉·深色"), ("dracula-light", "德古拉·浅色"),
+    ("nord-dark", "北欧·深色"), ("nord-light", "北欧·浅色"),
+    ("solarized-dark", "日光·深色"), ("solarized-light", "日光·浅色"),
+    ("tokyo-night-dark", "东京夜·深色"), ("tokyo-night-light", "东京夜·浅色"),
+)
+DEFAULT_THEME = THEMES[0][0]
+_THEME_LABELS = dict(THEMES)                          # id → 中文标签
+_LABEL_THEMES = {label: tid for tid, label in THEMES}  # 中文标签 → id
 
 # 绑定项悬浮讲解(? 卡片): 通道=取值三列表(values), 开关=症状处方(lines);
 # 与 docs/icefrag开发手册.md 通道章同源, 改动两边同步
@@ -449,8 +456,10 @@ class Console:
         bar = ttk.Frame(dlg, padding=(12, 8, 8, 0))
         bar.pack(fill="x")
         ttk.Label(bar, text="主题").pack(side="left")
-        theme_var = tk.StringVar(value=self.ui.get("theme", DEFAULT_THEME))
-        ttk.Combobox(bar, textvariable=theme_var, values=list(THEMES),
+        cur_theme = self.ui.get("theme", DEFAULT_THEME)
+        theme_var = tk.StringVar(value=_THEME_LABELS.get(cur_theme, cur_theme))
+        ttk.Combobox(bar, textvariable=theme_var,
+                     values=[label for _, label in THEMES],
                      state="readonly", width=26).pack(side="left", padx=8)
         nb = ttk.Notebook(dlg)
         nb.pack(fill="both", expand=True, padx=8, pady=8)
@@ -551,8 +560,8 @@ class Console:
                 v = var.get().lower() if k == "hotkey" else var.get()
                 setattr(self.gcfg, k, settings.coerce(getattr(self.gcfg, k), v))
             settings.save(self.gcfg)
-            self.ui["theme"] = theme_var.get()   # 操作者偏好落 ui.json(两态都可写)
-            store.save_ui(self.ui)
+            self.ui["theme"] = _LABEL_THEMES.get(theme_var.get(), DEFAULT_THEME)
+            store.save_ui(self.ui)             # 操作者偏好落 ui.json(存主题 id)
             try:                          # 热应用: 主题/尺寸/比例立即生效
                 self.root.style.theme_use(self.ui["theme"])
                 self._relayout()
