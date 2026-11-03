@@ -546,7 +546,6 @@ while not stopped():
 | `idle_timeout` | int | `0` | 无进展看门狗秒数(0=关): find/wait 命中与点击算进展, 超时停任务留痕 |
 | `window_size` | list[int] | `[1280, 800]` | 中控台窗口尺寸 [宽, 高] |
 | `left_ratio` | float | `0.45` | 中控台左列(目标表)占宽比例 0~1 |
-| `theme` | str | `'darkly'` | ttkbootstrap 主题名(设置弹窗可热切) |
 
 ## 六、通道选择速查(仅 window 端)
 ### 能力矩阵

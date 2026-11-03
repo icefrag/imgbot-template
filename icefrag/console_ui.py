@@ -3,8 +3,9 @@
 
 渲染薄层: 扫描/启停/取帧/行状态全部经设备编排面(devices.Fleet), 本模块
 不构造 Worker、不 import imgbot 引擎; 跨线程只经 notifyq/意图队列。
-尺寸/比例/主题 = 脚手架层 [ui] 配置, root.resizable(False,False) 用户锁死。
-设置弹窗两 Tab: 脚手架(固定 schema) / 业务(读 business.FIELD_META 自动生成)。
+尺寸/比例 = 脚手架层配置; 主题 = 操作者本地偏好(ui.json, 发布形态也可换,
+设置弹窗顶栏「外观」节, 保存即热应用)。root.resizable(False,False) 用户锁死。
+设置弹窗: 外观节(两态恒在) + 脚手架 Tab(仅开发态) / 业务 Tab(读 FIELD_META 生成)。
 """
 from __future__ import annotations
 
@@ -27,6 +28,14 @@ from .hotkeys import HotkeyListener, hotkey_choices, hotkey_label, hotkey_vk
 
 _LOG_COLORS = {"info": "#d0d0d0", "warn": "#e6b84c", "error": "#e05c5c"}
 _ROW_TAGS = {"running": "green", "error": "red", "done": "blue", "idle": "gray"}
+
+# 主题 = 操作者外观偏好(ui.json 机器本地记忆): 与项目/业务配置无关, 发布形态
+# (exe)也随时可换。ttkbootstrap 2.x 正名(darkly/superhero 等 1.x 遗留名 3.0 移除,
+# 不收录); 首个即出厂默认
+THEMES = ("bootstrap-dark", "bootstrap-light",
+          "dracula-dark", "dracula-light", "nord-dark", "nord-light",
+          "solarized-dark", "solarized-light", "tokyo-night-dark", "tokyo-night-light")
+DEFAULT_THEME = THEMES[0]
 
 # 绑定项悬浮讲解(? 卡片): 通道=取值三列表(values), 开关=症状处方(lines);
 # 与 docs/icefrag开发手册.md 通道章同源, 改动两边同步
@@ -153,6 +162,7 @@ class Console:
         self._toast_win: tk.Toplevel | None = None
         self._biz = store.load(business_mod.BusinessConfig)
         self.aliases: dict = store.load_aliases()  # ident→别名(改名持久化)
+        self.ui: dict = store.load_ui()            # 操作者外观偏好(主题等, ui.json)
         self.fleet = Fleet(self.gcfg, self.business_cfg_value, self.logq,
                            self.aliases,
                            notify=lambda k, t: self.notifyq.put((k, t)))
@@ -170,7 +180,8 @@ class Console:
 
     # ================= UI 构建 =================
     def _build(self):
-        self.root = ttk.Window(title="imgbot 中控台", themename=self.gcfg.theme,
+        self.root = ttk.Window(title="imgbot 中控台",
+                               themename=self.ui.get("theme", DEFAULT_THEME),
                                size=tuple(self.gcfg.window_size))
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -434,6 +445,13 @@ class Console:
         dlg = tk.Toplevel(self.root)
         dlg.title("设置")
         dlg.resizable(False, False)
+        # 外观节(两态恒在): 主题=操作者本地偏好, 发布形态不受"配置编译期定死"约束
+        bar = ttk.Frame(dlg, padding=(12, 8, 8, 0))
+        bar.pack(fill="x")
+        ttk.Label(bar, text="主题").pack(side="left")
+        theme_var = tk.StringVar(value=self.ui.get("theme", DEFAULT_THEME))
+        ttk.Combobox(bar, textvariable=theme_var, values=list(THEMES),
+                     state="readonly", width=26).pack(side="left", padx=8)
         nb = ttk.Notebook(dlg)
         nb.pack(fill="both", expand=True, padx=8, pady=8)
         entries = {}
@@ -533,8 +551,10 @@ class Console:
                 v = var.get().lower() if k == "hotkey" else var.get()
                 setattr(self.gcfg, k, settings.coerce(getattr(self.gcfg, k), v))
             settings.save(self.gcfg)
+            self.ui["theme"] = theme_var.get()   # 操作者偏好落 ui.json(两态都可写)
+            store.save_ui(self.ui)
             try:                          # 热应用: 主题/尺寸/比例立即生效
-                self.root.style.theme_use(self.gcfg.theme)
+                self.root.style.theme_use(self.ui["theme"])
                 self._relayout()
                 if self.hotkey is not None:  # 热重绑: 停旧监听, 新键立刻上岗
                     self.hotkey.stop()

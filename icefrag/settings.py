@@ -44,7 +44,6 @@ class ScaffoldConfig:
     # 外观
     window_size: list[int] = field(default_factory=lambda: [1280, 800])
     left_ratio: float = 0.45           # 左列(目标表)占宽比例
-    theme: str = "darkly"              # ttkbootstrap 主题名
     idle_timeout: int = 0              # 无进展看门狗秒数(0=关): find/wait 命中与
                                        # 点击算进展, 超时停任务留痕(防整夜卡死)
 
@@ -85,8 +84,6 @@ FIELD_META = {
     "fake_active": ("后台假激活", "combo:否|是", "window"),
     "hook_keystate": ("键状态钩子", "combo:否|是", "window"),
     "hide_module": ("隐藏模块", "combo:否|是", "window"),
-    "theme": ("主题", "combo:darkly|superhero|cyborg|solar|cosmo|flatly|litera|minty",
-              "both"),
     "window_size": ("窗体尺寸",
                     "combo:[960, 600]|[1280, 800]|[1600, 900]|[1920, 1080]",
                     "both"),

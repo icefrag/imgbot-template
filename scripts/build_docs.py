@@ -141,7 +141,6 @@ CFG_DESC = {
     "idle_timeout": '无进展看门狗秒数(0=关): find/wait 命中与点击算进展, 超时停任务留痕',
     "window_size": '中控台窗口尺寸 [宽, 高]',
     "left_ratio": '中控台左列(目标表)占宽比例 0~1',
-    "theme": 'ttkbootstrap 主题名(设置弹窗可热切)',
 }
 CFG_GROUPS = [
     ("目标与通道", ["backend", "window_class", "display", "mouse", "keypad",
@@ -150,7 +149,7 @@ CFG_GROUPS = [
     ("拟人键鼠(dsl click/dblclick 的默认)", ["human_mouse", "click_jitter",
                                       "click_settle_ms"]),
     ("运行策略与外观", ["max_restarts", "idle_timeout", "window_size",
-                     "left_ratio", "theme"]),
+                     "left_ratio"]),
 ]
 
 CHANNELS_MD = """

@@ -16,7 +16,6 @@ window_size = [
     800,
 ]
 left_ratio = 0.45
-theme = "darkly"
 human_mouse = true
 click_jitter = 3
 click_settle_ms = [

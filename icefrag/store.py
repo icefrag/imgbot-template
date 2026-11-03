@@ -21,6 +21,7 @@ from . import ROOT
 
 PATH = ROOT / "business.yaml"
 ALIAS_PATH = ROOT / "aliases.json"
+UI_PATH = ROOT / "ui.json"
 
 
 def atomic_write(path, text: str) -> None:
@@ -73,3 +74,24 @@ def load_aliases() -> dict:
 
 def save_aliases(d: dict) -> None:
     atomic_write(ALIAS_PATH, json.dumps(d, ensure_ascii=False, indent=1))
+
+
+def load_ui() -> dict:
+    """操作者外观偏好(ui.json, 如主题): 机器本地记忆, 摆 exe/项目旁, 不随发版
+    覆盖——与项目配置(scaffold.toml)/业务配置(business.yaml)分家。缺席=空表;
+    损坏/非映射先备份再用空表(与 aliases.json 同款纪律)。"""
+    if not UI_PATH.exists():
+        return {}
+    try:
+        data = json.loads(UI_PATH.read_text("utf-8"))
+    except Exception:
+        backup_broken(UI_PATH)
+        return {}
+    if not isinstance(data, dict):
+        backup_broken(UI_PATH)
+        return {}
+    return data
+
+
+def save_ui(d: dict) -> None:
+    atomic_write(UI_PATH, json.dumps(d, ensure_ascii=False, indent=1))
