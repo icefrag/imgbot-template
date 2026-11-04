@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 
-import sys
 import tomllib
 from dataclasses import dataclass, field, fields
 
@@ -65,8 +64,9 @@ def load() -> ScaffoldConfig:
 
 
 def save(cfg: ScaffoldConfig) -> None:
-    if getattr(sys, "frozen", False):
-        return          # 发布形态: 脚手架配置编译期定死, 用户侧不可改
+    # 冻结态照写(PATH 恒 exe 目录, 见 __init__): 2026-11-04 定案对齐「scaffold.toml
+    # 摆 exe 旁用户可编辑」契约——旧"编译期定死"静默 no-op 会让 exe 设置弹窗改键
+    # 重开即丢(左列宽度比例 0.6 案), 且与 load() 读 exe 旁文件自相矛盾
     from .store import atomic_write
     atomic_write(PATH, tomli_w.dumps(
         {f.name: getattr(cfg, f.name) for f in fields(cfg)}))

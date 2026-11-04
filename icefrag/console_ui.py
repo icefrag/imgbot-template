@@ -12,7 +12,6 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import queue
-import sys
 import threading
 import time
 import tkinter as tk
@@ -464,69 +463,70 @@ class Console:
         nb = ttk.Notebook(dlg)
         nb.pack(fill="both", expand=True, padx=8, pady=8)
         entries = {}
-        if not getattr(sys, "frozen", False):
-            # Tab1: 脚手架层——行/下拉/适用端全由 settings.FIELD_META 生成,
-            # 冷门项(pick_mode/max_restarts)直接改 scaffold.toml
-            f1 = ttk.Frame(nb, padding=10)
-            nb.add(f1, text="脚手架")
-            rows = [(key, label, kind) for key, (label, kind, ends)
-                    in settings.FIELD_META.items()
-                    if ends in ("both", self.gcfg.backend)]
-            for row, (key, label, kind) in enumerate(rows):
-                cell = ttk.Frame(f1)
-                cell.grid(row=row, column=0, sticky="w", pady=2)
-                ttk.Label(cell, text=label).pack(side="left")
-                if key in _BIND_HELP:
-                    q = ttk.Label(cell, text="?", cursor="question_arrow",
-                                  bootstyle="info")
-                    q.pack(side="left", padx=(4, 0))
-                    _HoverCard(q, *_BIND_HELP[key])
-                cur = getattr(self.gcfg, key)
-                if isinstance(cur, bool):
-                    init = "是" if cur else "否"
-                elif kind == "hotkey":
-                    init = hotkey_label(cur)
-                else:
-                    init = str(cur)
-                var = tk.StringVar(value=init)
-                if kind == "hotkey":
-                    choices = hotkey_choices()
-                elif kind.startswith("combo:"):
-                    choices = kind[6:].split("|")
-                else:
-                    choices = None
-                if choices:
-                    ttk.Combobox(f1, textvariable=var, values=choices,
-                                 state="readonly", width=26).grid(
-                        row=row, column=1, pady=2)
-                else:
-                    ttk.Entry(f1, textvariable=var, width=28).grid(
-                        row=row, column=1, pady=2)
-                entries[key] = var
-            # 经典组合: 症状对号入座, 点一条即把上方下拉调成该配方(保存才写回)
-            # (仅 window 端——adb 端无通道概念, 无组合可套)
-            if self.gcfg.backend == "window":
-                box = ttk.Labelframe(f1, text="经典组合 · 点一条即套用", padding=(8, 6))
-                box.grid(row=len(rows), column=0, columnspan=2, sticky="we", pady=(10, 0))
-                status = ttk.Label(box, text="对号入座: 症状在哪条, 点哪条",
-                                   bootstyle="secondary")
+        # Tab1: 脚手架层——行/下拉/适用端全由 settings.FIELD_META 生成,
+        # 冷门项(pick_mode/max_restarts)直接改 scaffold.toml.
+        # 2026-11-04 定案两态恒在: 对齐「scaffold.toml 摆 exe 旁用户可编辑」契约
+        # (settings.save 已放开冻结态写盘), exe 里通道/尺寸/比例也能弹窗调
+        f1 = ttk.Frame(nb, padding=10)
+        nb.add(f1, text="脚手架")
+        rows = [(key, label, kind) for key, (label, kind, ends)
+                in settings.FIELD_META.items()
+                if ends in ("both", self.gcfg.backend)]
+        for row, (key, label, kind) in enumerate(rows):
+            cell = ttk.Frame(f1)
+            cell.grid(row=row, column=0, sticky="w", pady=2)
+            ttk.Label(cell, text=label).pack(side="left")
+            if key in _BIND_HELP:
+                q = ttk.Label(cell, text="?", cursor="question_arrow",
+                              bootstyle="info")
+                q.pack(side="left", padx=(4, 0))
+                _HoverCard(q, *_BIND_HELP[key])
+            cur = getattr(self.gcfg, key)
+            if isinstance(cur, bool):
+                init = "是" if cur else "否"
+            elif kind == "hotkey":
+                init = hotkey_label(cur)
+            else:
+                init = str(cur)
+            var = tk.StringVar(value=init)
+            if kind == "hotkey":
+                choices = hotkey_choices()
+            elif kind.startswith("combo:"):
+                choices = kind[6:].split("|")
+            else:
+                choices = None
+            if choices:
+                ttk.Combobox(f1, textvariable=var, values=choices,
+                             state="readonly", width=26).grid(
+                    row=row, column=1, pady=2)
+            else:
+                ttk.Entry(f1, textvariable=var, width=28).grid(
+                    row=row, column=1, pady=2)
+            entries[key] = var
+        # 经典组合: 症状对号入座, 点一条即把上方下拉调成该配方(保存才写回)
+        # (仅 window 端——adb 端无通道概念, 无组合可套)
+        if self.gcfg.backend == "window":
+            box = ttk.Labelframe(f1, text="经典组合 · 点一条即套用", padding=(8, 6))
+            box.grid(row=len(rows), column=0, columnspan=2, sticky="we", pady=(10, 0))
+            status = ttk.Label(box, text="对号入座: 症状在哪条, 点哪条",
+                               bootstyle="secondary")
 
-                def _apply_combo(name, combo):
-                    entries["display"].set(combo["display"])
-                    entries["mouse"].set(combo["mouse"])
-                    entries["keypad"].set(combo["keypad"])
-                    entries["fake_active"].set("是" if combo.get("fake_active") else "否")
-                    entries["hook_keystate"].set("是" if combo.get("hook_keystate") else "否")
-                    entries["hide_module"].set("否")
-                    status.configure(text=f"已套用: {name} · 点保存才写回")
+            def _apply_combo(name, combo):
+                entries["display"].set(combo["display"])
+                entries["mouse"].set(combo["mouse"])
+                entries["keypad"].set(combo["keypad"])
+                entries["fake_active"].set("是" if combo.get("fake_active") else "否")
+                entries["hook_keystate"].set("是" if combo.get("hook_keystate") else "否")
+                entries["hide_module"].set("否")
+                status.configure(text=f"已套用: {name} · 点保存才写回")
 
-                for i, (name, combo) in enumerate(settings.CLASSIC_COMBOS):
-                    ttk.Button(box, text=f"{name}   →   {_combo_recipe(combo)}",
-                               bootstyle="secondary-outline",
-                               command=lambda n=name, c=combo: _apply_combo(n, c)
-                               ).grid(row=i, column=0, sticky="we", pady=1)
-                status.grid(row=len(settings.CLASSIC_COMBOS), column=0,
-                            sticky="w", pady=(4, 0))
+            for i, (name, combo) in enumerate(settings.CLASSIC_COMBOS):
+                ttk.Button(box, text=f"{name}   →   {_combo_recipe(combo)}",
+                           bootstyle="secondary-outline",
+                           command=lambda n=name, c=combo: _apply_combo(n, c)
+                           ).grid(row=i, column=0, sticky="we", pady=1)
+            status.grid(row=len(settings.CLASSIC_COMBOS), column=0,
+                        sticky="w", pady=(4, 0))
         # Tab2: 业务层(读 FIELD_META 自动生成; kind: "entry" | "combo:a|b|c";
         # bool 字段自动转"是/否"下拉, 不让用户输 true/false)
         f2 = ttk.Frame(nb, padding=10)
@@ -559,7 +559,11 @@ class Console:
             for k, var in entries.items():
                 v = var.get().lower() if k == "hotkey" else var.get()
                 setattr(self.gcfg, k, settings.coerce(getattr(self.gcfg, k), v))
-            settings.save(self.gcfg)
+            try:
+                settings.save(self.gcfg)
+            except OSError:                  # exe 目录只读等: 可见失败, 不许静默丢设置
+                save_btn.config(text="写盘失败(目录只读?)", bootstyle="danger")
+                return
             self.ui["theme"] = _LABEL_THEMES.get(theme_var.get(), DEFAULT_THEME)
             store.save_ui(self.ui)             # 操作者偏好落 ui.json(存主题 id)
             try:                          # 热应用: 主题/尺寸/比例立即生效
@@ -581,8 +585,8 @@ class Console:
             store.save(self.business_cfg_value)
             dlg.destroy()
 
-        ttk.Button(dlg, text="保存", bootstyle="success",
-                   command=apply).pack(pady=(0, 8))
+        save_btn = ttk.Button(dlg, text="保存", bootstyle="success", command=apply)
+        save_btn.pack(pady=(0, 8))
         _center_over(self.root, dlg)
 
     @property
