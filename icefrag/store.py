@@ -56,6 +56,18 @@ def save(cfg) -> None:
         dataclasses.asdict(cfg), allow_unicode=True, sort_keys=True))
 
 
+def reload_into(cfg) -> None:
+    """business.yaml 有变化就地把字段刷进已存在的 cfg 实例(原地改, 引用方无感)。
+
+    进程形态(ADR 0004)用: 子进程各持一份 cfg, 中控台弹窗改的是 yaml 文件,
+    轮循环每轮调一次 = 弹窗改完下一轮生效(与线程版共享对象的体验对齐)。
+    """
+    fresh = load(type(cfg))
+    for f in dataclasses.fields(cfg):
+        if hasattr(fresh, f.name):
+            setattr(cfg, f.name, getattr(fresh, f.name))
+
+
 def load_aliases() -> dict:
     """中控台改名记忆(aliases.json): ident→别名。缺席=空表;
     损坏/非映射先备份再用空表(与 business.yaml 同款纪律)。"""

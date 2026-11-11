@@ -384,6 +384,8 @@ class Console:
                 self.tree.insert("", "end", iid=ident, values=vals, tags=(w.coarse,))
             if w.alive:
                 running += 1
+        if running:                            # 只在有进程行时跑审计(卡死强杀)
+            self.fleet.audit_silence()
         self.status_lbl.config(text=f"{running} 运行")
         self.root.after(500, self._refresh_rows)
 
@@ -397,6 +399,12 @@ class Console:
             ts = time.strftime("%H:%M:%S")
             self.logbox.config(state="normal")
             self.logbox.insert("end", f"[{ts}] [{ident}] {text}\n", level)
+            self.logbox.see("end")
+            self.logbox.config(state="disabled")
+        n = int(self.logbox.index("end-1c").split(".")[0])
+        if n > 2000:                           # 长跑内存闸(2026-11-11 客户机OOM白屏案): 只留最近2000行, 不再无限涨
+            self.logbox.config(state="normal")
+            self.logbox.delete("1.0", f"{n - 2000}.0")
             self.logbox.see("end")
             self.logbox.config(state="disabled")
         while True:                                # UI 通知(热键线程投递来的)

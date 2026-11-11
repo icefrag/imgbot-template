@@ -94,11 +94,25 @@ class Fleet:
     def _apply_scan(self, fresh, labels, total):
         added = [s for s in fresh if s not in self.workers]   # 双扫描竞态保险
         for s in added:
-            self.workers[s] = Worker(s, "adb", self.gcfg, self.business_cfg,
-                                     self.logq,
-                                     self.aliases.get(s) or labels.get(s, s))
+            if self.gcfg.backend == "adb":
+                # 进程形态(ADR 0004): adb 行=DeviceProc(监督者), 不再起线程 Worker
+                from .procmode import DeviceProc
+                self.workers[s] = DeviceProc(s, self.gcfg, self.business_cfg,
+                                             self.logq,
+                                             self.aliases.get(s) or labels.get(s, s))
+            else:
+                self.workers[s] = Worker(s, self.gcfg.backend, self.gcfg,
+                                         self.business_cfg, self.logq,
+                                         self.aliases.get(s) or labels.get(s, s))
         self.logq.put(("adb", f"扫描: 在线 {total} 台, 新入表 {len(added)}"
                              "(表格按行启动)", "info"))
+
+    def audit_silence(self):
+        """静默审计(adb 进程形态, UI 心跳驱动): 活着但久无输出=卡死→强杀标红。"""
+        from .procmode import DeviceProc
+        for w in self.workers.values():
+            if isinstance(w, DeviceProc):
+                w.audit_silence()
 
     # ---- 启停编排(主线程, 按钮/意图共用) ----
     def start(self, idents) -> list[Worker]:
