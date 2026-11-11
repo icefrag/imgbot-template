@@ -384,8 +384,7 @@ class Console:
                 self.tree.insert("", "end", iid=ident, values=vals, tags=(w.coarse,))
             if w.alive:
                 running += 1
-        if running:                            # 只在有进程行时跑审计(卡死强杀)
-            self.fleet.audit_silence()
+        self.fleet.audit_silence()             # 静默审计(卡死强杀); 纯 window 行内空转
         self.status_lbl.config(text=f"{running} 运行")
         self.root.after(500, self._refresh_rows)
 

@@ -17,11 +17,16 @@ import threading
 import time
 
 from . import backends
+from typing import TYPE_CHECKING
+
 from .worker import Worker
+
+if TYPE_CHECKING:
+    from .procmode import DeviceProc
 
 
 class Fleet:
-    """ident → Worker 的编排居所。UI 持本对象, 不直接持 Worker 生命周期。"""
+    """ident → 行对象(adb: DeviceProc, window: Worker)的编排居所。UI 持本对象, 不直接持行生命周期。"""
 
     def __init__(self, gcfg, business_cfg, logq, aliases: dict, notify=None):
         self.gcfg = gcfg
@@ -29,7 +34,7 @@ class Fleet:
         self.logq = logq
         self.aliases = aliases                # ident→别名(改名持久化, UI 维护)
         self._notify_cb = notify              # (kind, title) UI 通知, 须线程安全
-        self.workers: dict[str, Worker] = {}
+        self.workers: dict[str, "Worker | DeviceProc"] = {}
         self._intents: queue.Queue = queue.Queue()
 
     # ---- 行与查询(主线程) ----
@@ -94,15 +99,11 @@ class Fleet:
     def _apply_scan(self, fresh, labels, total):
         added = [s for s in fresh if s not in self.workers]   # 双扫描竞态保险
         for s in added:
-            if self.gcfg.backend == "adb":
-                # 进程形态(ADR 0004): adb 行=DeviceProc(监督者), 不再起线程 Worker
-                from .procmode import DeviceProc
-                self.workers[s] = DeviceProc(s, self.gcfg, self.business_cfg,
-                                             self.logq,
-                                             self.aliases.get(s) or labels.get(s, s))
-            else:
-                self.workers[s] = Worker(s, self.gcfg.backend, self.gcfg,
-                                         self.business_cfg, self.logq,
+            # 进程形态(ADR 0004): adb 行=DeviceProc(监督者), 不再起线程 Worker
+            # (scan_adb_async 只在 adb 后端被调, 这里没有线程 Worker 分支)
+            from .procmode import DeviceProc
+            self.workers[s] = DeviceProc(s, self.gcfg, self.business_cfg,
+                                         self.logq,
                                          self.aliases.get(s) or labels.get(s, s))
         self.logq.put(("adb", f"扫描: 在线 {total} 台, 新入表 {len(added)}"
                              "(表格按行启动)", "info"))

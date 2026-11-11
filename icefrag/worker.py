@@ -30,6 +30,17 @@ class State(enum.Enum):
     FUSED = "异常(熔断)"
 
 
+def coarse_of(alive: bool, state: State) -> str:
+    """行染色粗状态(UI 行 tag): running/error/done/idle。Worker 与 DeviceProc 共用。"""
+    if alive:
+        return "running"
+    if state in (State.ERROR, State.FATAL, State.FUSED):
+        return "error"
+    if state is State.STOPPED:
+        return "done"
+    return "idle"
+
+
 class Worker:
     def __init__(self, ident: str, backend: str, gcfg: settings.ScaffoldConfig,
                  business_cfg, logq, title: str = ""):
@@ -58,13 +69,7 @@ class Worker:
     @property
     def coarse(self) -> str:
         """行染色粗状态(UI 行 tag): running/error/done/idle。"""
-        if self.alive:
-            return "running"
-        if self.state in (State.ERROR, State.FATAL, State.FUSED):
-            return "error"
-        if self.state is State.STOPPED:
-            return "done"
-        return "idle"
+        return coarse_of(self.alive, self.state)
 
     def log(self, text: str, level: str = "info"):
         self.last_info = text[:40]                # 最近信息归 Worker 自写, UI 只读

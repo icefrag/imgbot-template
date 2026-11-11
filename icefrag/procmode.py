@@ -2,15 +2,17 @@
 """adb 后端进程形态(ADR 0004): 每设备一子进程, 本模块两端兼营.
 
 子进程端(child_main): 复用 Worker 线程机制跑完整任务循环, 日志/状态经 stdout
-行协议(JSON 单行)回传; stdin 收 "stop" 优雅停; 退出码携带终态(0=正常/3=熔断/
-4=致命/5=绑定失败, 见 _EXIT_CODES)。
+行协议(JSON 单行)回传; stdin 收 "stop" 优雅停, **stdin 断管(父死)=孤儿自停**;
+退出码携带终态(0=正常/3=熔断/4=致命/5=绑定失败, 见 _EXIT_CODES)。
 
 监督者端(DeviceProc): Fleet 的行对象, mimic Worker 的 UI 消费面(alive/display/
-coarse/last_info/log/start/stop)。两段式停止: 先 stdin "stop" 优雅收口, join_s
-内不退 taskkill /F /T 硬杀; 断管(EOF)=子进程死=天然存活信号。静默审计
-(audit_silence) 由 UI 心跳驱动: 活着但 N 分钟无任何输出 = 卡死(C 调用挂死铁律:
-线程杀不掉, 进程才杀得掉) → 硬杀标红躺平, 不自动重拉(测试期契约: 暴露问题
-而非掩盖)。
+coarse/last_info/log/start/stop), state 用 Worker.State 枚举(别对 state 做字符
+串匹配——worker.py 契约, 行协议边界转一次即归一)。两段式停止两条路都保证收口:
+join_s>0 同步等+硬杀; join_s<=0(批量停) 只发信号即返回, 后台收割线程宽限后
+taskkill /F /T——卡死子进程读不到 stdin 也跑不掉。断管(EOF)=子进程死=天然存活
+信号。静默审计(audit_silence) 由 UI 心跳驱动: 活着但 N 分钟无**协议行** = 卡死
+(C 调用挂死铁律: 线程杀不掉, 进程才杀得掉) → 硬杀标红躺平, 不自动重拉(测试期
+契约: 暴露问题而非掩盖)。
 """
 from __future__ import annotations
 
@@ -22,11 +24,17 @@ import sys
 import threading
 import time
 
-# 子进程退出码 → Worker 终态语义(监督者按码上色; 码只增不改)
-_EXIT_CODES = {0: "STOPPED", 3: "FUSED", 4: "FATAL", 5: "ERROR"}
+from .worker import State
 
-# 静默审计默认阈值(秒): 子进程活着但这么久没有任何 stdout = 卡死
+# 子进程退出码 → Worker 终态(监督者按码上色; 码只增不改)
+_EXIT_CODES = {0: State.STOPPED, 3: State.FUSED, 4: State.FATAL,
+               5: State.ERROR}
+
+# 静默审计默认阈值(秒): 子进程活着但这么久没有任何协议行 = 卡死
 SILENCE_S = 600
+
+# 批量停止(join_s<=0)的后台收割宽限(秒): 宽限后仍活 = 卡死, taskkill
+REAP_GRACE_S = 5.0
 
 
 # ==================== 子进程端 ====================
@@ -38,7 +46,7 @@ def child_main(serial: str) -> int:
     """
     import business  # 项目根的 business.py(与中控台同 cwd/sys.path, 冻结态同包)
     from icefrag import settings, store
-    from icefrag.worker import State, Worker
+    from icefrag.worker import Worker
 
     def send(obj: dict) -> None:
         sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
@@ -60,9 +68,9 @@ def child_main(serial: str) -> int:
             send({"k": "log", "lv": level, "t": text})
 
     def poll_state():
-        last = None
-        while True:
-            if w.state is not last:                # 变化即报(终态必达)
+        last = w.state                     # 初值不发: 监督者已乐观置 RUNNING,
+        while True:                        # 首帧补发 IDLE 会把行打回"未运行"闪
+            if w.state is not last:        # 变化即报(终态必达)
                 last = w.state
                 send({"k": "st", "st": last.name, "info": w.last_info})
             if not w.alive:
@@ -70,10 +78,11 @@ def child_main(serial: str) -> int:
             time.sleep(0.2)
 
     def read_stdin():
-        for line in sys.stdin:                       # 阻塞读; 断管即返回
+        for line in sys.stdin:            # 阻塞读
             if line.strip() == "stop":
                 w.stop_event.set()
                 return
+        w.stop_event.set()                # 断管=父进程没了: 孤儿自停, 不许续跑
 
     for t in (threading.Thread(target=pump_logs, daemon=True),
               threading.Thread(target=poll_state, daemon=True),
@@ -82,8 +91,8 @@ def child_main(serial: str) -> int:
     w.start()
     while w.alive:
         time.sleep(0.2)
-    for code, name in _EXIT_CODES.items():           # 终态→退出码(反向查表)
-        if w.state.name == name:
+    for code, st in _EXIT_CODES.items():  # 终态→退出码(反向查表)
+        if w.state is st:
             return code
     return 0
 
@@ -116,10 +125,11 @@ class DeviceProc:
         self.business_cfg = business_cfg       # 同上(参数经文件每轮重读, 不走此引用)
         self.logq = logq
         self.proc: subprocess.Popen | None = None
-        self.state = "IDLE"                    # Worker.State 名(string)
+        self.state = State.IDLE
         self.last_info = "—"
-        self.last_line_ts = 0.0                # 静默审计锚点(0=从未说话, 不审计 IDLE)
+        self.last_line_ts = 0.0                # 静默审计锚点(0=从未说话, IDLE 不审计)
         self._cmd = cmd
+        self._stopping = False                 # 主动停止中: 退出码不上 ERROR 色
 
     # ---- UI 消费面(与 Worker 同形) ----
     @property
@@ -128,21 +138,12 @@ class DeviceProc:
 
     @property
     def display(self) -> str:
-        from icefrag.worker import State
-        try:
-            return State[self.state].value
-        except KeyError:
-            return self.state
+        return self.state.value
 
     @property
     def coarse(self) -> str:
-        if self.alive:
-            return "running"
-        if self.state in ("ERROR", "FATAL", "FUSED"):
-            return "error"
-        if self.state == "STOPPED":
-            return "done"
-        return "idle"
+        from .worker import coarse_of
+        return coarse_of(self.alive, self.state)
 
     def log(self, text: str, level: str = "info"):
         """监督者自己的话(截图已存/强杀通知等)走中控台日志面板。"""
@@ -158,32 +159,41 @@ class DeviceProc:
                          "--icefrag-device", self.ident]
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        self._stopping = False
         self.proc = subprocess.Popen(
             self._cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, encoding="utf-8",
             errors="replace", env=env, creationflags=flags)
-        self.state = "RUNNING"
+        self.state = State.RUNNING
         self.last_line_ts = time.monotonic()
         threading.Thread(target=self._pump, daemon=True).start()
 
-    def stop(self, join_s: float = 5.0, announce=True):
-        """两段式: stdin "stop" 优雅收口; join_s 内不退 taskkill /F /T 硬杀。
+    def stop(self, join_s: float = 5.0):
+        """两段式: stdin "stop" 优雅收口; 宽限内不退 taskkill /F /T 硬杀。
 
-        join_s<=0: 只发优雅信号不等待(批量停止用), 死活交给审计/EOF。
+        join_s>0: 同步等+硬杀(单行启停用); join_s<=0: 只发信号即返回(批量停止
+        不冻 UI), 后台收割线程保证宽限后必杀——卡死子进程读不到 stdin 也跑不掉。
         """
         if not self.alive:
             return
+        self._stopping = True
         try:
             self.proc.stdin.write("stop\n")
             self.proc.stdin.flush()
         except (OSError, ValueError):
             pass                                # 管已断, 等 reap
         if join_s > 0:
-            end = time.monotonic() + join_s
-            while self.alive and time.monotonic() < end:
-                time.sleep(0.1)
-            if self.alive:
-                self._kill("优雅停止超时, 硬杀")
+            self._reap(join_s)
+        else:
+            threading.Thread(target=self._reap, args=(REAP_GRACE_S,),
+                             daemon=True).start()
+
+    def _reap(self, grace_s: float):
+        end = time.monotonic() + grace_s
+        while self.alive and time.monotonic() < end:
+            time.sleep(0.1)
+        if self.alive:
+            self._kill("停止宽限超时, 硬杀")
 
     def _kill(self, why: str):
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(self.proc.pid)],
@@ -191,10 +201,12 @@ class DeviceProc:
         self.log(f"{why}(pid {self.proc.pid})", "error")
 
     def _pump(self):
-        """读子进程 stdout: JSON 行上状态/日志, 非 JSON 行(崩溃 traceback)按 error 转。"""
+        """读子进程 stdout: JSON 行上状态/日志, 非 JSON 行(崩溃 traceback)按 error 转。
+
+        静默审计只认协议行: 非 JSON 行不刷 last_line_ts——原生库刷屏不算"活着"。
+        """
         assert self.proc is not None and self.proc.stdout
         for line in self.proc.stdout:
-            self.last_line_ts = time.monotonic()
             line = line.strip()
             if not line:
                 continue
@@ -203,30 +215,38 @@ class DeviceProc:
             except json.JSONDecodeError:
                 self.logq.put((self.ident, line, "error"))
                 continue
+            self.last_line_ts = time.monotonic()
             if msg.get("k") == "log":
                 self.last_info = str(msg.get("t", ""))[:40]
                 self.logq.put((self.ident, msg.get("t", ""),
                                msg.get("lv", "info")))
             elif msg.get("k") == "st":
-                self.state = str(msg.get("st", self.state))
+                try:
+                    self.state = State[str(msg.get("st", ""))]
+                except KeyError:
+                    continue
                 if msg.get("info"):
                     self.last_info = str(msg["info"])[:40]
         code = self.proc.wait()
-        if self.state in ("RUNNING", "IDLE"):    # 没等到终态行: 退出码反推
-            self.state = _EXIT_CODES.get(code, "ERROR")
-            if code not in _EXIT_CODES:
+        if self.state in (State.RUNNING, State.IDLE):   # 没等到终态行: 退出码反推
+            if code in _EXIT_CODES:
+                self.state = _EXIT_CODES[code]
+            elif self._stopping:                # 主动停止途中死(含被硬杀): 不算异常
+                self.state = State.STOPPED
+            else:
+                self.state = State.ERROR
                 self.log(f"设备进程异常退出(code {code})", "error")
 
     def audit_silence(self, silence_s: float = SILENCE_S):
-        """静默审计(UI 心跳驱动): 活着但 silence_s 无任何输出 = 卡死 → 硬杀标红。
+        """静默审计(UI 心跳驱动): 活着但 silence_s 无协议行 = 卡死 → 硬杀标红。
 
         不自动重拉(测试期契约)。IDLE(从未启动)不审计。
         """
-        if not self.alive or self.state == "IDLE":
+        if not self.alive or self.state is State.IDLE:
             return
         idle = time.monotonic() - self.last_line_ts
         if idle > silence_s:
-            self.state = "ERROR"
+            self.state = State.ERROR
             self.last_info = f"卡死({int(idle / 60)} 分钟无输出), 已强杀"
             self.log(f"静默 {int(idle / 60)} 分钟无输出, 判卡死强杀"
                      f"(pid {self.proc.pid}), 标红躺平", "error")

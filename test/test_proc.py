@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 
 from icefrag import store
-from icefrag.procmode import DeviceProc
+from icefrag.procmode import REAP_GRACE_S, DeviceProc
+from icefrag.worker import State
 
 
 def _fake_child(code: str) -> list[str]:
@@ -52,20 +53,20 @@ def main() -> int:
         "send({'k':'st','st':'STOPPED','info':'任务被停止'})\n")
     p = DeviceProc("127.0.0.1:5555", None, None, logq, title="假·5555", cmd=child)
     p.start()
-    _wait(lambda: p.state == "RUNNING", what="RUNNING")
+    _wait(lambda: p.state is State.RUNNING, what="RUNNING")
     _wait(lambda: any("点了啥" in t for _i, t, _l in _drain(logq)), what="log行")
     assert p.alive and p.coarse == "running"
     assert p.display == "运行中"
     p.stop(join_s=10)
     _wait(lambda: not p.alive, what="优雅退出")
-    assert p.state == "STOPPED" and p.coarse == "done", p.state
+    assert p.state is State.STOPPED and p.coarse == "done", p.state
 
     # ② 退出码映射: 退 3 无 st 行 → FUSED 标红
     child = _fake_child("import sys; sys.exit(3)\n")
     p = DeviceProc("x", None, None, logq, cmd=child)
     p.start()
     _wait(lambda: not p.alive, what="退3")
-    assert p.state == "FUSED" and p.coarse == "error", p.state
+    assert p.state is State.FUSED and p.coarse == "error", p.state
 
     # ③ 崩溃输出(非 JSON 行)按 error 转发; 未知码 → ERROR
     child = _fake_child(
@@ -73,11 +74,12 @@ def main() -> int:
     p = DeviceProc("x", None, None, logq, cmd=child)
     p.start()
     _wait(lambda: not p.alive, what="退1")
-    assert p.state == "ERROR", p.state
+    assert p.state is State.ERROR, p.state
     assert any(lv == "error" and "Traceback" in t
                for _i, t, lv in _drain(logq)), "崩溃行没按 error 转"
 
-    # ④ 硬杀: 不读 stdin 的赖死进程, 优雅超时后 taskkill 树杀
+    # ④ 硬杀: 不读 stdin 的赖死进程, 优雅超时后 taskkill 树杀;
+    #    主动停止途中被硬杀 → STOPPED, 不许误标红「异常」(评审案 c1)
     child = _fake_child("import time; time.sleep(300)\n")
     p = DeviceProc("x", None, None, logq, cmd=child)
     p.start()
@@ -86,6 +88,7 @@ def main() -> int:
     p.stop(join_s=2)
     _wait(lambda: not p.alive, what="硬杀")
     assert time.monotonic() - t0 < 30, "硬杀拖太久"
+    assert p.state is State.STOPPED and p.coarse == "done", p.state
 
     # ⑤ 静默审计: 活着但不说话 → 判卡死强杀标红, 不自动重拉
     child = _fake_child(
@@ -97,10 +100,21 @@ def main() -> int:
     time.sleep(0.6)                              # 静默窗口走完才许判卡死
     p.audit_silence(silence_s=0.5)
     _wait(lambda: not p.alive, what="审计强杀")
-    assert p.state == "ERROR" and "卡死" in p.last_info, p.last_info
+    assert p.state is State.ERROR and "卡死" in p.last_info, p.last_info
     assert p.coarse == "error"
 
-    # ⑥ reload_into: 文件改动原地刷进既有实例(引用不变, 字段更新)
+    # ⑥ 批量停止(join_s=0)不冻 UI 也不留孤儿: 后台收割宽限后必杀(评审案 a1)
+    child = _fake_child("import time; time.sleep(300)\n")
+    p = DeviceProc("x", None, None, logq, cmd=child)
+    p.start()
+    _wait(lambda: p.alive, what="赖死进程活着")
+    t0 = time.monotonic()
+    p.stop(join_s=0)                             # 即刻返回
+    assert time.monotonic() - t0 < 1, "批量停止不该同步等"
+    _wait(lambda: not p.alive, timeout=REAP_GRACE_S + 20, what="后台收割")
+    assert p.state is State.STOPPED, p.state
+
+    # ⑦ reload_into: 文件改动原地刷进既有实例(引用不变); yaml 坏/缺席不动 cfg
     @dataclasses.dataclass
     class _Cfg:
         mode: str = "a"
@@ -115,10 +129,16 @@ def main() -> int:
             ref = cfg
             store.reload_into(cfg)
             assert cfg is ref and cfg.mode == "b" and cfg.star == 9, cfg
+            store.PATH.write_text("mode: [坏yaml\n", encoding="utf-8")
+            store.reload_into(cfg)                # 坏文件: 不动
+            assert cfg.mode == "b" and cfg.star == 9, "坏yaml不得重置运行中参数"
+            store.PATH.unlink()
+            store.reload_into(cfg)                # 缺席: 不动
+            assert cfg.mode == "b"
     finally:
         store.PATH = old_path
 
-    print("test_proc: 6/6 全过")
+    print("test_proc: 7/7 全过")
     return 0
 
 

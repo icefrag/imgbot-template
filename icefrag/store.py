@@ -61,11 +61,19 @@ def reload_into(cfg) -> None:
 
     进程形态(ADR 0004)用: 子进程各持一份 cfg, 中控台弹窗改的是 yaml 文件,
     轮循环每轮调一次 = 弹窗改完下一轮生效(与线程版共享对象的体验对齐)。
+    yaml 缺席/损坏时**不动 cfg**(load 会回退默认值, 原地刷=运行中参数静默重置,
+    2026-11-11 评审案); 下一轮文件修好了自然跟上。
     """
+    if not PATH.exists():
+        return
+    try:
+        if not isinstance(yaml.safe_load(PATH.read_text("utf-8")), dict):
+            return                              # 手改手滑成非映射, 同损坏处理
+    except yaml.YAMLError:
+        return
     fresh = load(type(cfg))
     for f in dataclasses.fields(cfg):
-        if hasattr(fresh, f.name):
-            setattr(cfg, f.name, getattr(fresh, f.name))
+        setattr(cfg, f.name, getattr(fresh, f.name))
 
 
 def load_aliases() -> dict:
