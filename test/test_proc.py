@@ -138,7 +138,13 @@ def main() -> int:
     finally:
         store.PATH = old_path
 
-    print("test_proc: 7/7 全过")
+    # ⑧ spawn 失败(exe 路径坏/杀软拦截): start 不炸调用线程, 标红躺平可重试
+    p = DeviceProc("x", None, None, logq, cmd=[sys.executable + ".坏", "x"])
+    p.start()                                   # 不许抛
+    assert p.state is State.ERROR and p.coarse == "error", p.state
+    assert any("spawn 失败" in t for _i, t, _l in _drain(logq)), "spawn 失败没上报"
+
+    print("test_proc: 8/8 全过")
     return 0
 
 

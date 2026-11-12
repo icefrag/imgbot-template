@@ -44,6 +44,10 @@ def child_main(serial: str) -> int:
 
     返回值=进程退出码(_EXIT_CODES 反查)。
     """
+    # 每设备一进程的慢 OCR 闸默认(ADR-0004 Consequences): 一台=并发1发, 免
+    # N进程×3发 的无界叠加(全局常量默认3是单进程多worker线程形态的口径)。
+    # setdefault: 机况特殊的机子可在拉起中控台前自行 export 覆盖。
+    os.environ.setdefault("IMGBOT_OCR_MAX_CONCURRENT", "1")
     import business  # 项目根的 business.py(与中控台同 cwd/sys.path, 冻结态同包)
     from icefrag import settings, store
     from icefrag.worker import Worker
@@ -84,13 +88,16 @@ def child_main(serial: str) -> int:
                 return
         w.stop_event.set()                # 断管=父进程没了: 孤儿自停, 不许续跑
 
-    for t in (threading.Thread(target=pump_logs, daemon=True),
-              threading.Thread(target=poll_state, daemon=True),
-              threading.Thread(target=read_stdin, daemon=True)):
+    threads = [threading.Thread(target=pump_logs, daemon=True),
+               threading.Thread(target=poll_state, daemon=True),
+               threading.Thread(target=read_stdin, daemon=True)]
+    for t in threads:
         t.start()
     w.start()
     while w.alive:
         time.sleep(0.2)
+    threads[0].join(timeout=2.0)          # 日志泵倒干净尾——队列尾恰是熔断/致命现场行,
+                                          # daemon 关停即被杀, 不等就丢(2026-11-12 评审)
     for code, st in _EXIT_CODES.items():  # 终态→退出码(反向查表)
         if w.state is st:
             return code
@@ -160,10 +167,15 @@ class DeviceProc:
         env = dict(os.environ, PYTHONIOENCODING="utf-8")
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         self._stopping = False
-        self.proc = subprocess.Popen(
-            self._cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-            errors="replace", env=env, creationflags=flags)
+        try:
+            self.proc = subprocess.Popen(
+                self._cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                errors="replace", env=env, creationflags=flags)
+        except OSError as e:              # exe 路径坏/杀软拦截(冻结态 spawn 首验面)
+            self.state = State.ERROR      # 标红躺平可重试, 不许炸 UI 线程
+            self.log(f"spawn 失败: {e}", "error")
+            return
         self.state = State.RUNNING
         self.last_line_ts = time.monotonic()
         threading.Thread(target=self._pump, daemon=True).start()
