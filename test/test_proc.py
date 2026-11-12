@@ -144,7 +144,22 @@ def main() -> int:
     assert p.state is State.ERROR and p.coarse == "error", p.state
     assert any("spawn 失败" in t for _i, t, _l in _drain(logq)), "spawn 失败没上报"
 
-    print("test_proc: 8/8 全过")
+    # ⑨ 入口路由 maybe_child_argv: 旗+值→child_main(serial) 返回退出码;
+    #    缺旗/旗后无值→None 照常起中控台(旗悬空不许 IndexError, 2026-11-13 评审)
+    import icefrag.procmode as pm
+    seen, orig_cm, orig_argv = [], pm.child_main, sys.argv
+    pm.child_main = lambda serial: (seen.append(serial), 7)[1]
+    try:
+        sys.argv = ["console.py"]
+        assert pm.maybe_child_argv() is None
+        sys.argv = ["console.py", "--icefrag-device", "127.0.0.1:5555"]
+        assert pm.maybe_child_argv() == 7 and seen == ["127.0.0.1:5555"], seen
+        sys.argv = ["console.py", "--icefrag-device"]
+        assert pm.maybe_child_argv() is None, "旗后无值不该 IndexError"
+    finally:
+        pm.child_main, sys.argv = orig_cm, orig_argv
+
+    print("test_proc: 9/9 全过")
     return 0
 
 

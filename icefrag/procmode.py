@@ -109,10 +109,10 @@ def maybe_child_argv() -> int | None:
 
     返回退出码(调用方 sys.exit), None=不是子进程模式, 照常起中控台。
     """
-    if "--icefrag-device" not in sys.argv:
-        return None
-    serial = sys.argv[sys.argv.index("--icefrag-device") + 1]
-    return child_main(serial)
+    idx = sys.argv.index("--icefrag-device") if "--icefrag-device" in sys.argv else -1
+    if idx < 0 or idx + 1 >= len(sys.argv):
+        return None                # 缺旗或旗后缺 serial: 照常起中控台, 不猜
+    return child_main(sys.argv[idx + 1])
 
 
 # ==================== 监督者端 ====================

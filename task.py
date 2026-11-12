@@ -13,6 +13,7 @@ from __future__ import annotations
 import ctypes
 
 from icefrag.dsl import *  # 顶层命令: icefrag 命令 + 大漠直通全家桶, 速查见 icefrag/dsl.py
+from icefrag.store import reload_into
 
 def main_task(ctx):
     """总入口: 一个函数 = 任务全程。返回 = 完成(框架收口); 挂机循环自己写
@@ -20,6 +21,9 @@ def main_task(ctx):
     for i in range(1, ctx.cfg.max_rounds + 1):
         if stopped():          # F9 按下 → 收工(状态"已停止")
             return
+        # 进程形态(ADR 0004): 设备进程各持一份 cfg, 弹窗改的是 business.yaml
+        # 文件——每轮重读刷进实例, 弹窗改完下一轮生效(线程版共享对象, 读回同值无害)
+        reload_into(ctx.cfg)
         log(f"第 {i}/{ctx.cfg.max_rounds} 轮")
         _clear()
         _type_text(ctx)

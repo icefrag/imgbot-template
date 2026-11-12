@@ -12,4 +12,10 @@ import business  # noqa: E402
 from icefrag.console_ui import Console  # noqa: E402
 
 if __name__ == "__main__":
+    # 进程形态(ADR 0004): 中控台 spawn 自己带 --icefrag-device <serial> 当设备
+    # 进程, 从这进 child_main(Worker 线程机制原样, stdout 行协议回传), 不起 UI
+    from icefrag.procmode import maybe_child_argv
+    _code = maybe_child_argv()
+    if _code is not None:
+        raise SystemExit(_code)
     Console(business).run()

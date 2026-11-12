@@ -17,12 +17,8 @@ import threading
 import time
 
 from . import backends
-from typing import TYPE_CHECKING
-
+from .procmode import DeviceProc
 from .worker import Worker
-
-if TYPE_CHECKING:
-    from .procmode import DeviceProc
 
 
 class Fleet:
@@ -38,11 +34,11 @@ class Fleet:
         self._intents: queue.Queue = queue.Queue()
 
     # ---- 行与查询(主线程) ----
-    def rows(self) -> list[Worker]:
+    def rows(self) -> list[Worker | DeviceProc]:
         """快照迭代(UI 刷新用, 不怕启停并发改字典)。"""
         return list(self.workers.values())
 
-    def get(self, ident: str) -> Worker | None:
+    def get(self, ident: str) -> Worker | DeviceProc | None:
         return self.workers.get(ident)
 
     # ---- 跨线程入口 ----
@@ -101,7 +97,6 @@ class Fleet:
         for s in added:
             # 进程形态(ADR 0004): adb 行=DeviceProc(监督者), 不再起线程 Worker
             # (scan_adb_async 只在 adb 后端被调, 这里没有线程 Worker 分支)
-            from .procmode import DeviceProc
             self.workers[s] = DeviceProc(s, self.gcfg, self.business_cfg,
                                          self.logq,
                                          self.aliases.get(s) or labels.get(s, s))
@@ -110,13 +105,12 @@ class Fleet:
 
     def audit_silence(self):
         """静默审计(adb 进程形态, UI 心跳驱动): 活着但久无输出=卡死→强杀标红。"""
-        from .procmode import DeviceProc
         for w in self.workers.values():
             if isinstance(w, DeviceProc):
                 w.audit_silence()
 
     # ---- 启停编排(主线程, 按钮/意图共用) ----
-    def start(self, idents) -> list[Worker]:
+    def start(self, idents) -> list[Worker | DeviceProc]:
         """启动选中行里未在跑的, 返回真正启动了的。"""
         started = []
         for i in idents:
@@ -126,7 +120,7 @@ class Fleet:
                 started.append(w)
         return started
 
-    def stop(self, idents, join_s: float = 5.0) -> list[Worker]:
+    def stop(self, idents, join_s: float = 5.0) -> list[Worker | DeviceProc]:
         """停止选中行里在跑的, 返回真正停了的。join_s=0: 多行停止不冻结 UI。"""
         stopped = []
         for i in idents:
@@ -146,10 +140,10 @@ class Fleet:
         """「全部启动」的计划(未在跑的行 ident); 错峰节奏由 UI 的定时链驱动。"""
         return [w.ident for w in self.workers.values() if not w.alive]
 
-    def running(self) -> list[Worker]:
+    def running(self) -> list[Worker | DeviceProc]:
         return [w for w in self.workers.values() if w.alive]
 
-    def stop_all(self, join_s: float = 0.0) -> list[Worker]:
+    def stop_all(self, join_s: float = 0.0) -> list[Worker | DeviceProc]:
         stopped = self.running()
         for w in stopped:
             w.stop(join_s=join_s)
