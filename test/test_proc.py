@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """进程形态(procmode)离线自检: 设备进程协议/两段停止/退出码映射/静默审计/
-参数重读/stdio 编码钉死。假子进程=临时 py 文件(不依赖真设备真业务)。
-跑法: uv run test/test_proc.py
+参数重读/stdio 编码钉死/作业对象孤儿陪葬。假子进程=临时 py 文件(不依赖真
+设备真业务)。跑法: uv run test/test_proc.py
 """
 import dataclasses
+import os
 import queue
 import sys
 import tempfile
@@ -181,7 +182,72 @@ def main() -> int:
     assert "中文协议行".encode("utf-8") in wire, wire
     assert "中文协议行".encode("gbk") not in wire, "还在按 GBK 上线"
 
-    print("test_proc: 10/10 全过")
+    # ⑪ 中控台硬死→子进程内核级陪葬(作业对象 KILL_ON_JOB_CLOSE, 2026-11-13
+    #    「中控退出进程不退」案): 监督者 os._exit 硬退(不走优雅停/不关 stdin,
+    #    复刻被任务管理器杀的现场), 孙进程不许活——EOF 自停救不了卡死进程,
+    #    这例锁的是内核兜底层。非 Windows 无作业对象机制, 跳过。
+    if os.name == "nt":
+        import ctypes
+        import subprocess as sp
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            (td / "sleeper.py").write_text(
+                "import os, sys, time\n"
+                "open(sys.argv[1], 'w').write(str(os.getpid()))\n"
+                "time.sleep(300)\n", encoding="utf-8")
+            (td / "supervisor.py").write_text(
+                "import os, queue, sys, time\n"
+                "from pathlib import Path\n"
+                "from icefrag.procmode import DeviceProc\n"
+                f"p = DeviceProc('x', queue.Queue(), cmd=[sys.executable, "
+                f"{str(td / 'sleeper.py')!r}, {str(td / 'grand.pid')!r}])\n"
+                "p.start()\n"
+                "time.sleep(1)\n"                    # 等 spawn+挂作业落定
+                f"Path({str(td / 'assigned.flag')!r}).write_text('1')\n"  # A 由此开始验活
+                "time.sleep(3)\n"                    # 留窗口给 A 验「孙进程活着」
+                "os._exit(0)\n", encoding="utf-8")   # 硬死: 跳过一切清理
+            root = Path(__file__).resolve().parent.parent
+            err_f = open(td / "sup.err", "wb")       # stderr 走文件: 父端不阻塞
+            sup = sp.Popen([sys.executable, str(td / "supervisor.py")],
+                           cwd=root,
+                           env=dict(os.environ, PYTHONPATH=str(root)),
+                           stdout=sp.DEVNULL, stderr=err_f)
+            err_f.close()
+
+            def _pid_alive(pid: int) -> bool:
+                k32 = ctypes.windll.kernel32
+                h = k32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFO
+                if not h:
+                    return False
+                code = ctypes.c_uint32()
+                k32.GetExitCodeProcess(h, ctypes.byref(code))
+                k32.CloseHandle(h)
+                return code.value == 259             # STILL_ACTIVE
+
+            def _sup_err() -> str:
+                return (td / "sup.err").read_text(errors="replace")[-800:]
+
+            end = time.monotonic() + 10
+            while not (td / "grand.pid").exists():
+                if time.monotonic() > end or sup.poll() is not None:
+                    raise AssertionError(f"监督者没拉起孙进程(stderr 尾): "
+                                         f"{_sup_err()}")
+                time.sleep(0.1)
+            grand_pid = int((td / "grand.pid").read_text())
+            end = time.monotonic() + 10
+            while not (td / "assigned.flag").exists():
+                if time.monotonic() > end or sup.poll() is not None:
+                    raise AssertionError(
+                        f"B 没写标记就没了(returncode={sup.poll()}, "
+                        f"stderr 尾): {_sup_err()}")
+                time.sleep(0.1)
+            _wait(lambda: _pid_alive(grand_pid), timeout=3,
+                  what="硬死前孙进程活着(提前死=挂作业误杀)")
+            sup.wait(timeout=30)
+            _wait(lambda: not _pid_alive(grand_pid), timeout=10,
+                  what="监督者硬死后孙进程陪葬")
+
+    print("test_proc: 11/11 全过")
     return 0
 
 

@@ -10,7 +10,9 @@ coarse/last_info/log/start/stop), state 用 Worker.State 枚举(别对 state 做
 串匹配——worker.py 契约, 行协议边界转一次即归一)。两段式停止两条路都保证收口:
 join_s>0 同步等+硬杀; join_s<=0(批量停) 只发信号即返回, 后台收割线程宽限后
 taskkill /F /T——卡死子进程读不到 stdin 也跑不掉。断管(EOF)=子进程死=天然存活
-信号。静默审计(audit_silence) 由 UI 心跳驱动: 活着但 N 分钟无**协议行** = 卡死
+信号。父进程自己怎么死由作业对象兜底: 全部子进程挂进 KILL_ON_JOB_CLOSE 的
+job(2026-11-13), 中控无论优雅退/崩溃/被杀, 内核立刻收割全体子孙。静默审计
+(audit_silence) 由 UI 心跳驱动: 活着但 N 分钟无**协议行** = 卡死
 (C 调用挂死铁律: 线程杀不掉, 进程才杀得掉) → 硬杀标红躺平, 不自动重拉(测试期
 契约: 暴露问题而非掩盖)。
 """
@@ -37,6 +39,71 @@ SILENCE_S = 600
 REAP_GRACE_S = 5.0
 
 
+# ==================== 孤儿兜底: 作业对象 ====================
+# EOF 优雅停只救得了"还响应 stdin"的子进程: 父异常死后, 卡在 C 调用里的
+# 子进程永远处理不到断管, 就是真孤儿, 且父死=静默审计也没了(2026-11-13
+# 用户「中控退出进程不退」案)。兜底层用 Windows 作业对象: 全部子进程挂进
+# KILL_ON_JOB_CLOSE 的 job, 本进程无论怎么死(优雅退/崩溃/被任务管理器杀),
+# 句柄随进程关闭, 内核立刻收割 job 全体成员——子孙自动继承成员资格, 子进程
+# 拉的 adb 守护进程也跑不掉。句柄刻意不 CloseHandle: 进程死=句柄关=全杀。
+_JOB: int | None = None
+
+
+def _supervisor_job() -> int | None:
+    """中控台进程级 KILL_ON_JOB_CLOSE 作业对象(懒建, 句柄进程级复用)。
+
+    建立失败返回 None: 兜底层缺席不挡启动, 退回 EOF 优雅停老路; 失败也固化
+    (0), 不许每 spawn 重试一遍。
+    """
+    global _JOB
+    if _JOB is None:
+        if os.name != "nt":
+            _JOB = 0                     # 非 Windows: 无此机制, 常驻跳过
+        else:
+            import ctypes
+
+            class _BasicLimit(ctypes.Structure):
+                _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64),
+                            ("PerJobUserTimeLimit", ctypes.c_int64),
+                            ("LimitFlags", ctypes.c_uint32),
+                            ("MinimumWorkingSetSize", ctypes.c_size_t),
+                            ("MaximumWorkingSetSize", ctypes.c_size_t),
+                            ("ActiveProcessLimit", ctypes.c_uint32),
+                            ("Affinity", ctypes.c_size_t),   # ULONG_PTR
+                            ("PriorityClass", ctypes.c_uint32),
+                            ("SchedulingClass", ctypes.c_uint32)]
+
+            class _IoCounters(ctypes.Structure):
+                _fields_ = [(n, ctypes.c_uint64) for n in (
+                    "ReadOperationCount", "WriteOperationCount",
+                    "OtherOperationCount", "ReadTransferCount",
+                    "WriteTransferCount", "OtherTransferCount")]
+
+            class _ExtLimit(ctypes.Structure):
+                _fields_ = [("BasicLimitInformation", _BasicLimit),
+                            ("IoInfo", _IoCounters),
+                            ("ProcessMemoryLimit", ctypes.c_size_t),
+                            ("JobMemoryLimit", ctypes.c_size_t),
+                            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                            ("PeakJobMemoryUsed", ctypes.c_size_t)]
+            try:
+                k32 = ctypes.windll.kernel32
+                k32.CreateJobObjectW.restype = ctypes.c_void_p
+                k32.AssignProcessToJobObject.argtypes = (
+                    ctypes.c_void_p, ctypes.c_void_p)
+                job = k32.CreateJobObjectW(None, None)
+                info = _ExtLimit()
+                info.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+                if not job or not k32.SetInformationJobObject(
+                        job, 9,                      # 9=JobObjectExtendedLimitInformation
+                        ctypes.byref(info), ctypes.sizeof(info)):
+                    raise OSError(ctypes.GetLastError())
+                _JOB = job
+            except OSError:
+                _JOB = 0
+    return _JOB or None
+
+
 def _pin_stdio_utf8() -> None:
     """子进程端钉死 stdio 编码: 冻结 noconsole exe 的 stdout/stderr 是
     bootloader 自建的 TextIOWrapper, 编码取本地码页(GBK)且**无视
@@ -58,10 +125,13 @@ def child_main(serial: str) -> int:
 
     返回值=进程退出码(_EXIT_CODES 反查)。
     """
-    # 每设备一进程的慢 OCR 闸默认(ADR-0004 Consequences): 一台=并发1发, 免
-    # N进程×3发 的无界叠加(全局常量默认3是单进程多worker线程形态的口径)。
-    # setdefault: 机况特殊的机子可在拉起中控台前自行 export 覆盖。
+    # 每设备一进程的 OCR 资源默认(ADR-0004 Consequences): ①慢OCR闸=并发1发, 免
+    # N进程×3发 的无界叠加(全局常量默认3是单进程多worker线程形态的口径); ②ORT
+    # 推理线程=1, 免 N进程×2线程 冲顶(2026-11-13 客户五开CPU 28→50%案: 5进程
+    # 各一套引擎×intra2=10线程; 单发慢约1.5-2x, 调用方超时全是墙钟制不受结构性
+    # 影响)。setdefault: 机况特殊的机子可在拉起中控台前自行 export 覆盖。
     os.environ.setdefault("IMGBOT_OCR_MAX_CONCURRENT", "1")
+    os.environ.setdefault("IMGBOT_ORT_INTRA_THREADS", "1")
     _pin_stdio_utf8()                     # 行协议通道编码钉 utf-8(冻结 exe 无视 env)
     import business  # 项目根的 business.py(与中控台同 cwd/sys.path, 冻结态同包)
     from icefrag import settings, store
@@ -189,9 +259,25 @@ class DeviceProc:
             self.state = State.ERROR      # 标红躺平可重试, 不许炸 UI 线程
             self.log(f"spawn 失败: {e}", "error")
             return
+        self._assign_job()
         self.state = State.RUNNING
         self.last_line_ts = time.monotonic()
         threading.Thread(target=self._pump, daemon=True).start()
+
+    def _assign_job(self):
+        """子进程挂进中控台作业对象: 本进程一死, 内核立刻收割它(含全部子孙)。
+
+        挂载失败只记一行不挡启动(嵌套作业限制/权限): 兜底层缺席时 EOF 优雅
+        停仍是第一层, 不因兜底缺位把 spawn 弄失败。
+        """
+        job = _supervisor_job()
+        if job is None:
+            return
+        import ctypes
+        if not ctypes.windll.kernel32.AssignProcessToJobObject(
+                job, int(self.proc._handle)):
+            self.log(f"作业对象挂载失败(win error {ctypes.GetLastError()}), "
+                     f"pid {self.proc.pid} 退回 EOF 自停", "info")
 
     def stop(self, join_s: float = 5.0):
         """两段式: stdin "stop" 优雅收口; 宽限内不退 taskkill /F /T 硬杀。
