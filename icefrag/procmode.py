@@ -37,6 +37,20 @@ SILENCE_S = 600
 REAP_GRACE_S = 5.0
 
 
+def _pin_stdio_utf8() -> None:
+    """子进程端钉死 stdio 编码: 冻结 noconsole exe 的 stdout/stderr 是
+    bootloader 自建的 TextIOWrapper, 编码取本地码页(GBK)且**无视
+    PYTHONIOENCODING**(2026-11-13 用户方日志乱码案, tools/frozen_stdio_probe
+    实证: env 到位但 wrapper=gbk)——行协议按 utf-8 上线是双方契约, 子端显式
+    reconfigure 钉住, 与监督者端 Popen 的 encoding="utf-8" 对齐。stderr 同管道
+    合并(崩溃 traceback 里的中文串同病), 一并钉。"""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except AttributeError:      # 裸 writer 无 reconfigure: 维持原状
+            pass
+
+
 # ==================== 子进程端 ====================
 
 def child_main(serial: str) -> int:
@@ -48,6 +62,7 @@ def child_main(serial: str) -> int:
     # N进程×3发 的无界叠加(全局常量默认3是单进程多worker线程形态的口径)。
     # setdefault: 机况特殊的机子可在拉起中控台前自行 export 覆盖。
     os.environ.setdefault("IMGBOT_OCR_MAX_CONCURRENT", "1")
+    _pin_stdio_utf8()                     # 行协议通道编码钉 utf-8(冻结 exe 无视 env)
     import business  # 项目根的 business.py(与中控台同 cwd/sys.path, 冻结态同包)
     from icefrag import settings, store
     from icefrag.worker import Worker

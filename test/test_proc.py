@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """进程形态(procmode)离线自检: 设备进程协议/两段停止/退出码映射/静默审计/
-参数重读。假子进程=临时 py 文件(不依赖真设备真业务)。
+参数重读/stdio 编码钉死。假子进程=临时 py 文件(不依赖真设备真业务)。
 跑法: uv run test/test_proc.py
 """
 import dataclasses
@@ -159,7 +159,29 @@ def main() -> int:
     finally:
         pm.child_main, sys.argv = orig_cm, orig_argv
 
-    print("test_proc: 9/9 全过")
+    # ⑩ 行协议编码钉死 _pin_stdio_utf8(2026-11-13 用户方日志乱码案): 冻结
+    #    noconsole exe 的 stdout 是 bootloader 自建 TextIOWrapper, 编码=本地
+    #    码页(GBK)且无视 PYTHONIOENCODING——子进程中文按 GBK 上线, 监督者按
+    #    utf-8 replace 解码成满屏菱形。回归: helper 必须把 gbk wrapper 翻成
+    #    utf-8 且字节真按 utf-8 落管; 无 reconfigure 的裸 writer 不许炸。
+    import io
+    from icefrag.procmode import _pin_stdio_utf8
+    buf = io.BytesIO()
+    fake_out = io.TextIOWrapper(buf, encoding="gbk")   # 复刻冻结子进程现场
+    orig = (sys.stdout, sys.stderr)
+    sys.stdout, sys.stderr = fake_out, object()        # stderr=无 reconfigure 裸对象
+    try:
+        _pin_stdio_utf8()
+        sys.stdout.write("中文协议行\n")
+        sys.stdout.flush()
+    finally:
+        sys.stdout, sys.stderr = orig
+    wire = buf.getvalue()
+    assert fake_out.encoding == "utf-8", fake_out.encoding
+    assert "中文协议行".encode("utf-8") in wire, wire
+    assert "中文协议行".encode("gbk") not in wire, "还在按 GBK 上线"
+
+    print("test_proc: 10/10 全过")
     return 0
 
 
