@@ -192,15 +192,19 @@ def main() -> int:
         with tempfile.TemporaryDirectory() as td:
             td = Path(td)
             (td / "sleeper.py").write_text(
-                "import os, sys, time\n"
+                "import os, subprocess, sys, time\n"
                 "open(sys.argv[1], 'w').write(str(os.getpid()))\n"
+                "sub = subprocess.Popen([sys.executable, '-c', "
+                "'import time; time.sleep(300)'])\n"
+                "open(sys.argv[2], 'w').write(str(sub.pid))\n"   # 孙孙: 验继承成员资格
                 "time.sleep(300)\n", encoding="utf-8")
             (td / "supervisor.py").write_text(
                 "import os, queue, sys, time\n"
                 "from pathlib import Path\n"
                 "from icefrag.procmode import DeviceProc\n"
                 f"p = DeviceProc('x', queue.Queue(), cmd=[sys.executable, "
-                f"{str(td / 'sleeper.py')!r}, {str(td / 'grand.pid')!r}])\n"
+                f"{str(td / 'sleeper.py')!r}, {str(td / 'grand.pid')!r}, "
+                f"{str(td / 'sub.pid')!r}])\n"
                 "p.start()\n"
                 "time.sleep(1)\n"                    # 等 spawn+挂作业落定
                 f"Path({str(td / 'assigned.flag')!r}).write_text('1')\n"  # A 由此开始验活
@@ -235,17 +239,23 @@ def main() -> int:
                 time.sleep(0.1)
             grand_pid = int((td / "grand.pid").read_text())
             end = time.monotonic() + 10
+            while not (td / "sub.pid").exists():
+                if time.monotonic() > end:
+                    raise AssertionError("孙孙进程没起(pid 文件缺席)")
+                time.sleep(0.1)
+            sub_pid = int((td / "sub.pid").read_text())
+            end = time.monotonic() + 10
             while not (td / "assigned.flag").exists():
                 if time.monotonic() > end or sup.poll() is not None:
                     raise AssertionError(
                         f"B 没写标记就没了(returncode={sup.poll()}, "
                         f"stderr 尾): {_sup_err()}")
                 time.sleep(0.1)
-            _wait(lambda: _pid_alive(grand_pid), timeout=3,
-                  what="硬死前孙进程活着(提前死=挂作业误杀)")
+            _wait(lambda: _pid_alive(grand_pid) and _pid_alive(sub_pid),
+                  timeout=3, what="硬死前两代孙进程都活着(提前死=挂作业误杀)")
             sup.wait(timeout=30)
-            _wait(lambda: not _pid_alive(grand_pid), timeout=10,
-                  what="监督者硬死后孙进程陪葬")
+            _wait(lambda: not _pid_alive(grand_pid) and not _pid_alive(sub_pid),
+                  timeout=10, what="监督者硬死后两代孙进程都陪葬")
 
     print("test_proc: 11/11 全过")
     return 0

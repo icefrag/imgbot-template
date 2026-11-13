@@ -49,11 +49,12 @@ REAP_GRACE_S = 5.0
 _JOB: int | None = None
 
 
-def _supervisor_job() -> int | None:
+def _supervisor_job(log=None) -> int | None:
     """中控台进程级 KILL_ON_JOB_CLOSE 作业对象(懒建, 句柄进程级复用)。
 
-    建立失败返回 None: 兜底层缺席不挡启动, 退回 EOF 优雅停老路; 失败也固化
-    (0), 不许每 spawn 重试一遍。
+    建立失败返回 None 且经 log 记一行(排障要能区分「无兜底」与「没走到」),
+    兜底层缺席不挡启动, 退回 EOF 优雅停老路; 失败也固化(0), 不许每 spawn
+    重试一遍。
     """
     global _JOB
     if _JOB is None:
@@ -91,6 +92,9 @@ def _supervisor_job() -> int | None:
                 k32.CreateJobObjectW.restype = ctypes.c_void_p
                 k32.AssignProcessToJobObject.argtypes = (
                     ctypes.c_void_p, ctypes.c_void_p)
+                k32.SetInformationJobObject.argtypes = (
+                    ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p,
+                    ctypes.c_size_t)
                 job = k32.CreateJobObjectW(None, None)
                 info = _ExtLimit()
                 info.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
@@ -99,8 +103,11 @@ def _supervisor_job() -> int | None:
                         ctypes.byref(info), ctypes.sizeof(info)):
                     raise OSError(ctypes.GetLastError())
                 _JOB = job
-            except OSError:
+            except Exception as e:   # 非宽: 句柄超 c_int 时 ctypes 抛转换错, 非 OSError
                 _JOB = 0
+                if log is not None:
+                    log(f"作业对象建立失败, 本机降级只靠 EOF 自停: {e!r}",
+                        "error")
     return _JOB or None
 
 
@@ -267,17 +274,22 @@ class DeviceProc:
     def _assign_job(self):
         """子进程挂进中控台作业对象: 本进程一死, 内核立刻收割它(含全部子孙)。
 
-        挂载失败只记一行不挡启动(嵌套作业限制/权限): 兜底层缺席时 EOF 优雅
-        停仍是第一层, 不因兜底缺位把 spawn 弄失败。
+        整体不许抛(评审案 a-3: spawn 已成功, 兜底层缺位不许反过来把启动弄
+        坏), 失败只记一行——EOF 优雅停仍是第一层。kernel32 签名由
+        _supervisor_job 首建时统一配置, 依赖那份配置。
         """
-        job = _supervisor_job()
-        if job is None:
-            return
-        import ctypes
-        if not ctypes.windll.kernel32.AssignProcessToJobObject(
-                job, int(self.proc._handle)):
-            self.log(f"作业对象挂载失败(win error {ctypes.GetLastError()}), "
-                     f"pid {self.proc.pid} 退回 EOF 自停", "info")
+        try:
+            job = _supervisor_job(log=self.log)
+            if job is None:
+                return
+            import ctypes
+            if not ctypes.windll.kernel32.AssignProcessToJobObject(
+                    job, int(self.proc._handle)):
+                self.log(f"作业对象挂载失败(win error {ctypes.GetLastError()}), "
+                         f"pid {self.proc.pid} 退回 EOF 自停", "info")
+        except Exception as e:
+            self.log(f"作业对象挂载异常, pid {getattr(self.proc, 'pid', '?')}"
+                     f"退回 EOF 自停: {e!r}", "error")
 
     def stop(self, join_s: float = 5.0):
         """两段式: stdin "stop" 优雅收口; 宽限内不退 taskkill /F /T 硬杀。
