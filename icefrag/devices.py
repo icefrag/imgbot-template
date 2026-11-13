@@ -12,9 +12,7 @@ window/adb 取帧方言分派吃在本模块(同 worker 绑定分支的单点模
 from __future__ import annotations
 
 import queue
-import re
 import threading
-import time
 
 from . import backends
 from .procmode import DeviceProc
@@ -97,8 +95,7 @@ class Fleet:
         for s in added:
             # 进程形态(ADR 0004): adb 行=DeviceProc(监督者), 不再起线程 Worker
             # (scan_adb_async 只在 adb 后端被调, 这里没有线程 Worker 分支)
-            self.workers[s] = DeviceProc(s, self.gcfg, self.business_cfg,
-                                         self.logq,
+            self.workers[s] = DeviceProc(s, self.logq,
                                          self.aliases.get(s) or labels.get(s, s))
         self.logq.put(("adb", f"扫描: 在线 {total} 台, 新入表 {len(added)}"
                              "(表格按行启动)", "info"))
@@ -184,9 +181,7 @@ class Fleet:
         def work():
             try:
                 from imgbot.target import AdbTarget
-                stem = re.sub(r'[\\/:*?"<>|]', "_", ident)
-                p = backends.SHOTS / (f"{time.strftime('%m%d_%H%M%S')}"
-                                      f"_{stem}_snap.png")
+                p = backends.shot_path(f"{ident}_snap")
                 w_px, h_px = AdbTarget(ident).save_screenshot(p)
                 w.log(f"截图已存: {p}({w_px}x{h_px})")
             except Exception as e:

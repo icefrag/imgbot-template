@@ -76,20 +76,25 @@ def reload_into(cfg) -> None:
         setattr(cfg, f.name, getattr(fresh, f.name))
 
 
-def load_aliases() -> dict:
-    """中控台改名记忆(aliases.json): ident→别名。缺席=空表;
+def _load_json_map(path) -> dict:
+    """json 记忆文件(aliases.json/ui.json)共用载入: 缺席=空表;
     损坏/非映射先备份再用空表(与 business.yaml 同款纪律)。"""
-    if not ALIAS_PATH.exists():
+    if not path.exists():
         return {}
     try:
-        data = json.loads(ALIAS_PATH.read_text("utf-8"))
+        data = json.loads(path.read_text("utf-8"))
     except Exception:
-        backup_broken(ALIAS_PATH)
+        backup_broken(path)
         return {}
     if not isinstance(data, dict):
-        backup_broken(ALIAS_PATH)
+        backup_broken(path)
         return {}
     return data
+
+
+def load_aliases() -> dict:
+    """中控台改名记忆(aliases.json): ident→别名。"""
+    return _load_json_map(ALIAS_PATH)
 
 
 def save_aliases(d: dict) -> None:
@@ -98,19 +103,8 @@ def save_aliases(d: dict) -> None:
 
 def load_ui() -> dict:
     """操作者外观偏好(ui.json, 如主题): 机器本地记忆, 摆 exe/项目旁, 不随发版
-    覆盖——与项目配置(scaffold.toml)/业务配置(business.yaml)分家。缺席=空表;
-    损坏/非映射先备份再用空表(与 aliases.json 同款纪律)。"""
-    if not UI_PATH.exists():
-        return {}
-    try:
-        data = json.loads(UI_PATH.read_text("utf-8"))
-    except Exception:
-        backup_broken(UI_PATH)
-        return {}
-    if not isinstance(data, dict):
-        backup_broken(UI_PATH)
-        return {}
-    return data
+    覆盖——与项目配置(scaffold.toml)/业务配置(business.yaml)分家。"""
+    return _load_json_map(UI_PATH)
 
 
 def save_ui(d: dict) -> None:

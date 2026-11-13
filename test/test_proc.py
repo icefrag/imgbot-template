@@ -51,7 +51,7 @@ def main() -> int:
         "for line in sys.stdin:\n"
         "    if line.strip()=='stop': break\n"
         "send({'k':'st','st':'STOPPED','info':'任务被停止'})\n")
-    p = DeviceProc("127.0.0.1:5555", None, None, logq, title="假·5555", cmd=child)
+    p = DeviceProc("127.0.0.1:5555", logq, title="假·5555", cmd=child)
     p.start()
     _wait(lambda: p.state is State.RUNNING, what="RUNNING")
     _wait(lambda: any("点了啥" in t for _i, t, _l in _drain(logq)), what="log行")
@@ -63,7 +63,7 @@ def main() -> int:
 
     # ② 退出码映射: 退 3 无 st 行 → FUSED 标红
     child = _fake_child("import sys; sys.exit(3)\n")
-    p = DeviceProc("x", None, None, logq, cmd=child)
+    p = DeviceProc("x", logq, cmd=child)
     p.start()
     _wait(lambda: not p.alive, what="退3")
     assert p.state is State.FUSED and p.coarse == "error", p.state
@@ -71,7 +71,7 @@ def main() -> int:
     # ③ 崩溃输出(非 JSON 行)按 error 转发; 未知码 → ERROR
     child = _fake_child(
         "import sys; print('Traceback (most recent call last):'); sys.exit(1)\n")
-    p = DeviceProc("x", None, None, logq, cmd=child)
+    p = DeviceProc("x", logq, cmd=child)
     p.start()
     _wait(lambda: not p.alive, what="退1")
     assert p.state is State.ERROR, p.state
@@ -81,7 +81,7 @@ def main() -> int:
     # ④ 硬杀: 不读 stdin 的赖死进程, 优雅超时后 taskkill 树杀;
     #    主动停止途中被硬杀 → STOPPED, 不许误标红「异常」(评审案 c1)
     child = _fake_child("import time; time.sleep(300)\n")
-    p = DeviceProc("x", None, None, logq, cmd=child)
+    p = DeviceProc("x", logq, cmd=child)
     p.start()
     _wait(lambda: p.alive, what="赖死进程活着")
     t0 = time.monotonic()
@@ -94,7 +94,7 @@ def main() -> int:
     child = _fake_child(
         "import sys,time\n"
         "sys.stdout.write('x\\n'); sys.stdout.flush(); time.sleep(300)\n")
-    p = DeviceProc("x", None, None, logq, cmd=child)
+    p = DeviceProc("x", logq, cmd=child)
     p.start()
     _wait(lambda: p.last_line_ts > 0, what="说过一句话")
     time.sleep(0.6)                              # 静默窗口走完才许判卡死
@@ -105,7 +105,7 @@ def main() -> int:
 
     # ⑥ 批量停止(join_s=0)不冻 UI 也不留孤儿: 后台收割宽限后必杀(评审案 a1)
     child = _fake_child("import time; time.sleep(300)\n")
-    p = DeviceProc("x", None, None, logq, cmd=child)
+    p = DeviceProc("x", logq, cmd=child)
     p.start()
     _wait(lambda: p.alive, what="赖死进程活着")
     t0 = time.monotonic()
@@ -139,7 +139,7 @@ def main() -> int:
         store.PATH = old_path
 
     # ⑧ spawn 失败(exe 路径坏/杀软拦截): start 不炸调用线程, 标红躺平可重试
-    p = DeviceProc("x", None, None, logq, cmd=[sys.executable + ".坏", "x"])
+    p = DeviceProc("x", logq, cmd=[sys.executable + ".坏", "x"])
     p.start()                                   # 不许抛
     assert p.state is State.ERROR and p.coarse == "error", p.state
     assert any("spawn 失败" in t for _i, t, _l in _drain(logq)), "spawn 失败没上报"

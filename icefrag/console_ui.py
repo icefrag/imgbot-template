@@ -44,43 +44,8 @@ DEFAULT_THEME = THEMES[0][0]
 _THEME_LABELS = dict(THEMES)                          # id → 中文标签
 _LABEL_THEMES = {label: tid for tid, label in THEMES}  # 中文标签 → id
 
-# 绑定项悬浮讲解(? 卡片): 通道=取值三列表(values), 开关=症状处方(lines);
-# 与 docs/icefrag开发手册.md 通道章同源, 改动两边同步
-_BIND_HELP = {
-    "display": ("图色通道 —— 截图从哪来", [
-        ("normal", "前台截屏裁剪", "目标必须前台可见"),
-        ("gdi", "PrintWindow 后台截图", "默认首选, GDI 窗口通吃"),
-        ("gdi2", "兼容模式, 慢但稳", "gdi 截图不刷新时换它"),
-        ("dx", "注入件截帧(OpenGL 已通)", "GDI 截不到的游戏; D3D9 调试中, 不通会明确报错"),
-    ], None),
-    "mouse": ("鼠标通道 —— 点击怎么发出去", [
-        ("windows", "宿主侧 PostMessage", "门槛低, 普通窗口首选"),
-        ("dx", "注入件进程内合成", "消息要过游戏输入检查的目标"),
-        ("windows2", "dx 消息 + 虚拟光标锁", "点击总落到真鼠标处/偏移"),
-        ("normal", "SendInput 真事件", "最后手段, 动真光标且须前台"),
-    ], None),
-    "keypad": ("键盘通道 —— 按键怎么发出去", [
-        ("windows", "PostMessage 消息键盘(带扫描码)", "默认首选; 轮询型游戏免疫→换 dx"),
-        ("dx", "注入件合成", "配合键状态钩子治无反应"),
-        ("normal", "SendInput 真事件", "最后手段, 动真键盘"),
-    ], None),
-    "fake_active": ("后台假激活 —— 治什么病", None, [
-        ("说明", "让后台窗口被游戏视为激活, 绕过点击处理里的激活门槛"),
-        ("症状", "移动/键盘都正常, 唯独点击全无反应"),
-        ("要求", "任一 dx 系通道(注入件在场)才生效, 否则跳过并留日志"),
-    ]),
-    "hook_keystate": ("键状态钩子 —— 治什么病", None, [
-        ("说明", "钩住 GetAsyncKeyState。游戏靠轮询按键状态、不收消息时才需要"),
-        ("症状", "键盘消息全无反应(连键都打不出)"),
-        ("要求", "键盘通道选 dx(注入件在场), 否则跳过并留日志"),
-    ]),
-    "hide_module": ("隐藏模块 —— 治什么病", None, [
-        ("说明", "把注入件从目标进程的模块列表里藏起来"),
-        ("场景", "反作弊扫进程模块列表时; 绑定后调一次即可"),
-        ("要求", "需 dx 系通道(注入件在场), 否则跳过并留日志"),
-        ("平时", "保持「否」"),
-    ]),
-}
+# 绑定项悬浮讲解(? 卡片)数据在 settings.BIND_HELP(与 FIELD_META 同居,
+# 键集 import 期断言拦拼错)。
 
 # 经典组合的 UI 配方串(数据在 settings.CLASSIC_COMBOS——与手册对症速查表同源)
 _SWITCH_NAMES = {"fake_active": "假激活", "hook_keystate": "键状态钩子"}
@@ -455,6 +420,39 @@ class Console:
             self._toast_win = None
 
     # ================= 设置弹窗(两 Tab, schema 驱动) =================
+    def _field_row(self, parent, row: int, label: str, kind: str, cur,
+                   help_meta=None) -> tk.StringVar:
+        """schema 行渲染共用(脚手架/业务两 Tab): 标签+可选?讲解卡+combo/entry,
+        返回行变量(apply() 统一写回)。bool 自动「是/否」下拉(声明了 combo 取值
+        则尊重声明顺序), hotkey 用全表下拉。"""
+        cell = ttk.Frame(parent)
+        cell.grid(row=row, column=0, sticky="w", pady=2)
+        ttk.Label(cell, text=label).pack(side="left")
+        if help_meta is not None:
+            q = ttk.Label(cell, text="?", cursor="question_arrow",
+                          bootstyle="info")
+            q.pack(side="left", padx=(4, 0))
+            _HoverCard(q, *help_meta)
+        if kind == "hotkey":
+            init, choices = hotkey_label(cur), hotkey_choices()
+        elif isinstance(cur, bool):
+            init = "是" if cur else "否"
+            choices = (kind[6:].split("|")
+                       if kind.startswith("combo:") else ["是", "否"])
+        elif kind.startswith("combo:"):
+            init, choices = str(cur), kind[6:].split("|")
+        else:
+            init, choices = str(cur), None
+        var = tk.StringVar(value=init)
+        if choices:
+            ttk.Combobox(parent, textvariable=var, values=choices,
+                         state="readonly", width=26).grid(row=row, column=1,
+                                                          pady=2)
+        else:
+            ttk.Entry(parent, textvariable=var, width=28).grid(
+                row=row, column=1, pady=2)
+        return var
+
     def _open_settings(self):
         dlg = tk.Toplevel(self.root)
         dlg.title("设置")
@@ -487,24 +485,8 @@ class Console:
         cur_biz = self.business_cfg_value
         for row, fname in enumerate(self.business_mod.BusinessConfig.__dataclass_fields__):
             label, kind = meta.get(fname, (fname, "entry"))
-            ttk.Label(f2, text=label).grid(row=row, column=0, sticky="w", pady=2)
-            cur_val = getattr(cur_biz, fname)
-            if kind.startswith("combo:"):
-                choices = kind[6:].split("|")
-            elif isinstance(cur_val, bool):
-                choices = ["是", "否"]
-            else:
-                choices = None
-            var = tk.StringVar(value=("是" if cur_val else "否")
-                               if choices == ["是", "否"] else str(cur_val))
-            if choices:
-                ttk.Combobox(f2, textvariable=var, values=choices,
-                             state="readonly", width=26).grid(
-                    row=row, column=1, pady=2)
-            else:
-                ttk.Entry(f2, textvariable=var, width=28).grid(
-                    row=row, column=1, pady=2)
-            biz_vars[fname] = var
+            biz_vars[fname] = self._field_row(f2, row, label, kind,
+                                              getattr(cur_biz, fname))
 
         def apply():
             for k, var in entries.items():
@@ -550,36 +532,9 @@ class Console:
                 in settings.FIELD_META.items()
                 if ends in ("both", self.gcfg.backend)]
         for row, (key, label, kind) in enumerate(rows):
-            cell = ttk.Frame(f1)
-            cell.grid(row=row, column=0, sticky="w", pady=2)
-            ttk.Label(cell, text=label).pack(side="left")
-            if key in _BIND_HELP:
-                q = ttk.Label(cell, text="?", cursor="question_arrow",
-                              bootstyle="info")
-                q.pack(side="left", padx=(4, 0))
-                _HoverCard(q, *_BIND_HELP[key])
-            cur = getattr(self.gcfg, key)
-            if isinstance(cur, bool):
-                init = "是" if cur else "否"
-            elif kind == "hotkey":
-                init = hotkey_label(cur)
-            else:
-                init = str(cur)
-            var = tk.StringVar(value=init)
-            if kind == "hotkey":
-                choices = hotkey_choices()
-            elif kind.startswith("combo:"):
-                choices = kind[6:].split("|")
-            else:
-                choices = None
-            if choices:
-                ttk.Combobox(f1, textvariable=var, values=choices,
-                             state="readonly", width=26).grid(
-                    row=row, column=1, pady=2)
-            else:
-                ttk.Entry(f1, textvariable=var, width=28).grid(
-                    row=row, column=1, pady=2)
-            entries[key] = var
+            entries[key] = self._field_row(
+                f1, row, label, kind, getattr(self.gcfg, key),
+                help_meta=settings.BIND_HELP.get(key))
         # 经典组合: 症状对号入座, 点一条即把上方下拉调成该配方(保存才写回)
         # (仅 window 端——adb 端无通道概念, 无组合可套)
         if self.gcfg.backend == "window":

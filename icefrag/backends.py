@@ -11,10 +11,20 @@ import random
 import re
 import time
 from collections import namedtuple
+from pathlib import Path
 
 from . import ROOT
 
 SHOTS = ROOT / "logs" / "shots"
+
+
+def shot_path(stem: str) -> Path:
+    """留痕文件名的唯一出口(Ctx.shot 与行📸 snap 共用): 目录保证在 + 时间戳
+    前缀 + 非法字符消毒——窗口标题/adb 序列号常带 \\ : 等, 不消毒 imwrite
+    不抛只返 False。改命名规则只改这里。"""
+    SHOTS.mkdir(parents=True, exist_ok=True)
+    return SHOTS / (time.strftime("%m%d_%H%M%S") + "_"
+                    + re.sub(r'[\\/:*?"<>|]', "_", stem) + ".png")
 
 # dsl 拟人键鼠默认(window/adb 两端共用; settle_ms 区间每次随机取值)
 MouseStyle = namedtuple("MouseStyle", "human jitter settle_ms")
@@ -93,10 +103,7 @@ class Ctx:
 
     def shot(self, tag: str = "") -> Path | None:
         """失败留痕: window 端存当前帧, adb 端存设备截图。"""
-        SHOTS.mkdir(parents=True, exist_ok=True)
-        # 文件名消毒: 窗口标题/adb序列号常带 \ : 等非法字符, imwrite 不抛只返 False
-        stem = re.sub(r'[\\/:*?"<>|]', "_", f"{self.name}_{tag or 'shot'}")
-        p = SHOTS / f"{time.strftime('%m%d_%H%M%S')}_{stem}.png"
+        p = shot_path(f"{self.name}_{tag or 'shot'}")
         try:
             ok = False
             if self.dm is not None:               # window 绑定帧 / adb 鸭子帧源

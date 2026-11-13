@@ -68,7 +68,7 @@ def child_main(serial: str) -> int:
                 if not w.alive and logq.empty():
                     return
                 continue
-            w.last_info = text[:40]
+            # last_info 不在此写: 全部 logq 流量经 Worker.log 入队时已自写
             send({"k": "log", "lv": level, "t": text})
 
     def poll_state():
@@ -124,12 +124,10 @@ class DeviceProc:
     [sys.executable, sys.argv[0], --icefrag-device, ident]。
     """
 
-    def __init__(self, ident, gcfg, business_cfg, logq, title=None, cmd=None):
+    def __init__(self, ident, logq, title=None, cmd=None):
         self.ident = ident
         self.title = title or ident
         self.backend = "adb"
-        self.gcfg = gcfg                       # 兼容 Fleet/frame 消费面
-        self.business_cfg = business_cfg       # 同上(参数经文件每轮重读, 不走此引用)
         self.logq = logq
         self.proc: subprocess.Popen | None = None
         self.state = State.IDLE
