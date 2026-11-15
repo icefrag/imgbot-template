@@ -27,6 +27,7 @@ from .devices import Fleet
 from .hotkeys import HotkeyListener, hotkey_choices, hotkey_label, hotkey_vk
 
 _LOG_COLORS = {"info": "#d0d0d0", "warn": "#e6b84c", "error": "#e05c5c"}
+_LOG_TAIL_EPS = 0.999   # 贴底判定: yview 底边分数 ≥ 此值算跟随(不满一屏恒 1.0 天然贴底)
 _ROW_TAGS = {"running": "green", "error": "red", "done": "blue", "idle": "gray"}
 
 # 主题 = 操作者外观偏好(ui.json 机器本地记忆): 与项目/业务配置无关, 发布形态
@@ -213,11 +214,20 @@ class Console:
             ttk.Button(btns2, text="扫描设备", width=10, bootstyle="info-outline",
                        command=self.scan_adb_devices).pack(side="left", padx=2)
 
-        self.logbox = tk.Text(self.right_f, bg="#1b1f24", fg="#d0d0d0", state="disabled",
+        log_f = ttk.Frame(self.right_f)          # 日志区: 滚动条 + IDEA 式贴底跟随
+        log_f.pack(fill="both", expand=True)
+        self.logbox = tk.Text(log_f, bg="#1b1f24", fg="#d0d0d0", state="disabled",
                               wrap="word", font=("Consolas", 9))
-        self.logbox.pack(fill="both", expand=True)
+        self.logbox.pack(side="left", fill="both", expand=True)
+        self._log_sb = ttk.Scrollbar(log_f, orient="vertical",
+                                     command=self.logbox.yview)
+        self._log_sb.pack(side="right", fill="y")
         for level, color in _LOG_COLORS.items():
             self.logbox.tag_config(level, foreground=color)
+        # 离底时右下角浮出「↓最新」, 贴底自藏; place 在 logbox 上不占布局
+        self._log_tail_btn = ttk.Button(self.logbox, text="↓ 最新", bootstyle="info",
+                                        command=self._log_jump_tail)
+        self.logbox.config(yscrollcommand=self._on_log_yscroll)
 
     def _relayout(self):
         """按当前 gcfg 摆窗体尺寸与左右分栏(建窗与设置保存后共用)。"""
@@ -353,6 +363,40 @@ class Console:
         self.status_lbl.config(text=f"{running} 运行")
         self.root.after(500, self._refresh_rows)
 
+    # ================= 日志跟随(IDEA 式): 贴底=跟随, 离底=冻结+「↓最新」浮钮 =================
+    def _log_at_tail(self) -> bool:
+        return self.logbox.yview()[1] >= _LOG_TAIL_EPS
+
+    def _log_jump_tail(self):
+        # yview_moveto 精确贴底: see("end") 底边分数≈0.99, 判不过 _LOG_TAIL_EPS
+        self.logbox.yview_moveto(1.0)         # 回底, 浮钮经 _on_log_yscroll 自藏
+
+    def _on_log_yscroll(self, first, last):
+        """滚动条同步 + 跟随态感知: 离底浮出「↓最新」, 滚回底部自藏(=恢复跟随)。"""
+        self._log_sb.set(first, last)
+        if float(last) >= _LOG_TAIL_EPS:
+            self._log_tail_btn.place_forget()
+        else:
+            self._log_tail_btn.place(relx=1.0, rely=1.0, x=-12, y=-12, anchor="se")
+
+    def _log_trim(self):
+        """长跑内存闸(2026-11-11 客户机OOM白屏案): 只留最近2000行, 不再无限涨。
+        离底阅读中裁剪不顶跑视线: 锚点记首可见行, 裁完跳回原行。"""
+        n = int(self.logbox.index("end-1c").split(".")[0])
+        if n <= 2000:
+            return
+        at_tail = self._log_at_tail()
+        self.logbox.config(state="normal")
+        if not at_tail:
+            self.logbox.mark_set("_trim", "@0,0")
+        self.logbox.delete("1.0", f"{n - 2000}.0")
+        if at_tail:
+            self.logbox.yview_moveto(1.0)
+        else:
+            self.logbox.see("_trim")
+            self.logbox.mark_unset("_trim")
+        self.logbox.config(state="disabled")
+
     def _pump_log(self):
         self.fleet.pump()                      # 意图收口(主线程): 热键启停/扫描入表
         while True:
@@ -361,16 +405,13 @@ class Console:
             except queue.Empty:
                 break
             ts = time.strftime("%H:%M:%S")
+            at_tail = self._log_at_tail()
             self.logbox.config(state="normal")
             self.logbox.insert("end", f"[{ts}] [{ident}] {text}\n", level)
-            self.logbox.see("end")
+            if at_tail:                        # 离底(用户在看旧日志)不拽走
+                self.logbox.yview_moveto(1.0)
             self.logbox.config(state="disabled")
-        n = int(self.logbox.index("end-1c").split(".")[0])
-        if n > 2000:                           # 长跑内存闸(2026-11-11 客户机OOM白屏案): 只留最近2000行, 不再无限涨
-            self.logbox.config(state="normal")
-            self.logbox.delete("1.0", f"{n - 2000}.0")
-            self.logbox.see("end")
-            self.logbox.config(state="disabled")
+        self._log_trim()
         while True:                                # UI 通知(热键线程投递来的)
             try:
                 kind, title = self.notifyq.get_nowait()
